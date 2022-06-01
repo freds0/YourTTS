@@ -23,12 +23,7 @@ from TTS.tts.models import setup_model
 from TTS.config import load_config
 
 # model vars 
-#MODEL_PATH = 'checkpoints_vits_multispeaker_ptbr/best_model.pth.tar'
-#CONFIG_PATH = 'checkpoints_vits_multispeaker_ptbr/config.json'
-#MODEL_PATH = './checkpoints/vits_tts_mls-April-13-2022_07+46PM-2d64d351/best_model.pth.tar'
-#CONFIG_PATH = './checkpoints/vits_tts_mls-April-13-2022_07+46PM-2d64d351/config.json'
-
-MODEL_PATH = './checkpoints/vits_tts_mls-May-21-2022_09+23PM-2d64d351/checkpoint_1260000.pth.tar'
+MODEL_PATH = './checkpoints/vits_tts_mls-May-21-2022_09+23PM-2d64d351/checkpoint_1210000.pth.tar'
 CONFIG_PATH = './checkpoints/vits_tts_mls-May-21-2022_09+23PM-2d64d351/config.json'
 
 
@@ -95,41 +90,6 @@ def save_file(filename, audio, output_type='wav', sampling_rate=22050):
         # Ocorreu um bug da lib soundfile: corta o final do arquivo ogg.
         sf.write(filename + '.ogg', audio, sampling_rate, format='ogg', subtype='vorbis')
 
-# A simpler version of what run.py does. It returns the created model and its saved checkpoint
-def get_model(args, scope):
-    with tf.variable_scope(scope):
-        args, base_config, base_model, config_module = get_base_config(args)
-        checkpoint = check_logdir(args, base_config)
-        model = create_model(args, base_config, config_module, base_model, None)
-    return model, checkpoint
-
-def load_tacotron_gst(logdir, scope):
-    #carrega tacotron-gst
-    args_T2S = ["--config_file=config/text2speech/tacotron_gst.py",
-            "--mode=interactive_infer",
-            "--logdir=" + logdir,
-            "--batch_size_per_gpu=" + str(batch_size),
-    ]
-    
-    model_T2S, checkpoint_T2S = get_model(args_T2S, scope)
-    
-    # Create the session and load the checkpoints
-    sess_config = tf.ConfigProto(allow_soft_placement=True)
-    sess_config.gpu_options.allow_growth = True
-    sess = tf.InteractiveSession(config=sess_config)
-    vars_T2S = {}
-    for v in tf.get_collection(tf.GraphKeys.VARIABLES):
-        if scope in v.name:
-            vars_T2S["/".join(v.op.name.split("/")[1:])] = v
-    saver_T2S = tf.train.Saver(vars_T2S)
-    saver_T2S.restore(sess, checkpoint_T2S)
-    
-    print('tacotron carregada..................')
-
-    return model_T2S, sess
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(device)
 
 #Adiciona pausa ao final do áudio passado
 def add_pausa(full_audio, pausa, pausa_padrao, sample_rate):
@@ -180,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_dir', default='./')
     parser.add_argument('--speaker', default='C1', help='Speaker code')
-    parser.add_argument('--input_file', default='texto_copel.txt', help='Sentences input file')
+    parser.add_argument('--input_file', default='sentences.txt', help='Sentences input file')
     parser.add_argument('--filename', default='output', help='Output filename')
     parser.add_argument('--output_folder', default='temp_wavs', help='Output folder')
     args = parser.parse_args()
