@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-from coqpit import MISSING
-
 from TTS.config import BaseAudioConfig, BaseTrainingConfig
 
 
@@ -17,11 +15,11 @@ class BaseVocoderConfig(BaseTrainingConfig):
             Number of instances used for evaluation. Defaults to 10.
         data_path (str):
             Root path of the training data. All the audio files found recursively from this root path are used for
-            training. Defaults to MISSING.
+            training. Defaults to `""`.
         feature_path (str):
             Root path to the precomputed feature files. Defaults to None.
         seq_len (int):
-            Length of the waveform segments used for training. Defaults to MISSING.
+            Length of the waveform segments used for training. Defaults to 1000.
         pad_short (int):
             Extra padding for the waveforms shorter than `seq_len`. Defaults to 0.
         conv_path (int):
@@ -45,9 +43,9 @@ class BaseVocoderConfig(BaseTrainingConfig):
     use_noise_augment: bool = False  # enable/disable random noise augmentation in spectrograms.
     eval_split_size: int = 10  # number of samples used for evaluation.
     # dataset
-    data_path: str = MISSING  # root data path. It finds all wav files recursively from there.
+    data_path: str = ""  # root data path. It finds all wav files recursively from there.
     feature_path: str = None  # if you use precomputed features
-    seq_len: int = MISSING  # signal length used in training.
+    seq_len: int = 1000  # signal length used in training.
     pad_short: int = 0  # additional padding for short wavs
     conv_pad: int = 0  # additional padding against convolutions applied to spectrograms
     use_cache: bool = False  # use in memory cache to keep the computed features. This might cause OOM.
@@ -101,7 +99,7 @@ class BaseGANVocoderConfig(BaseVocoderConfig):
                 "mel_fmax": None,
             }`
         target_loss (str):
-            Target loss name that defines the quality of the model. Defaults to `avg_G_loss`.
+            Target loss name that defines the quality of the model. Defaults to `G_avg_loss`.
         grad_clip (list):
             A list of gradient clipping theresholds for each optimizer. Any value less than 0 disables clipping.
             Defaults to [5, 5].
@@ -115,8 +113,10 @@ class BaseGANVocoderConfig(BaseVocoderConfig):
             Parameters for the generator learning rate scheduler. Defaults to `{"gamma": 0.999, "last_epoch": -1}`.
         lr_scheduler_disc (torch.optim.Scheduler):
             Learning rate scheduler for the discriminator. Defaults to `ExponentialLR`.
-        lr_scheduler_dict_params (dict):
+        lr_scheduler_disc_params (dict):
             Parameters for the discriminator learning rate scheduler. Defaults to `{"gamma": 0.999, "last_epoch": -1}`.
+        scheduler_after_epoch (bool):
+            Whether to update the learning rate schedulers after each epoch. Defaults to True.
         use_pqmf (bool):
             enable / disable PQMF for subband approximation at training. Defaults to False.
         steps_to_start_discriminator (int):
@@ -175,6 +175,7 @@ class BaseGANVocoderConfig(BaseVocoderConfig):
     lr_scheduler_gen_params: dict = field(default_factory=lambda: {"gamma": 0.999, "last_epoch": -1})
     lr_scheduler_disc: str = "ExponentialLR"  # one of the schedulers from https:#pytorch.org/docs/stable/optim.html
     lr_scheduler_disc_params: dict = field(default_factory=lambda: {"gamma": 0.999, "last_epoch": -1})
+    scheduler_after_epoch: bool = True
 
     use_pqmf: bool = False  # enable/disable using pqmf for multi-band training. (Multi-band MelGAN)
     steps_to_start_discriminator = 0  # start training the discriminator after this number of steps.

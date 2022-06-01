@@ -1,3 +1,5 @@
+import bisect
+
 import numpy as np
 import torch
 
@@ -54,33 +56,24 @@ def pad_per_step(inputs, pad_len):
     return np.pad(inputs, [[0, 0], [0, 0], [0, pad_len]], mode="constant", constant_values=0.0)
 
 
-# pylint: disable=attribute-defined-outside-init
-class StandardScaler:
-    def set_stats(self, mean, scale):
-        self.mean_ = mean
-        self.scale_ = scale
-
-    def reset_stats(self):
-        delattr(self, "mean_")
-        delattr(self, "scale_")
-
-    def transform(self, X):
-        X = np.asarray(X)
-        X -= self.mean_
-        X /= self.scale_
-        return X
-
-    def inverse_transform(self, X):
-        X = np.asarray(X)
-        X *= self.scale_
-        X += self.mean_
-        return X
-
-
-# from https://gist.github.com/jihunchoi/f1434a77df9db1bb337417854b398df1
-def sequence_mask(sequence_length, max_len=None):
-    if max_len is None:
-        max_len = sequence_length.data.max()
-    seq_range = torch.arange(max_len, dtype=sequence_length.dtype, device=sequence_length.device)
-    # B x T_max
-    return seq_range.unsqueeze(0) < sequence_length.unsqueeze(1)
+def get_length_balancer_weights(items: list, num_buckets=10):
+    # get all durations
+    audio_lengths = np.array([item["audio_length"] for item in items])
+    # create the $num_buckets buckets classes based in the dataset max and min length
+    max_length = int(max(audio_lengths))
+    min_length = int(min(audio_lengths))
+    step = int((max_length - min_length) / num_buckets) + 1
+    buckets_classes = [i + step for i in range(min_length, (max_length - step) + num_buckets + 1, step)]
+    # add each sample in their respective length bucket
+    buckets_names = np.array(
+        [buckets_classes[bisect.bisect_left(buckets_classes, item["audio_length"])] for item in items]
+    )
+    # count and compute the weights_bucket for each sample
+    unique_buckets_names = np.unique(buckets_names).tolist()
+    bucket_ids = [unique_buckets_names.index(l) for l in buckets_names]
+    bucket_count = np.array([len(np.where(buckets_names == l)[0]) for l in unique_buckets_names])
+    weight_bucket = 1.0 / bucket_count
+    dataset_samples_weight = np.array([weight_bucket[l] for l in bucket_ids])
+    # normalize
+    dataset_samples_weight = dataset_samples_weight / np.linalg.norm(dataset_samples_weight)
+    return torch.from_numpy(dataset_samples_weight).float()

@@ -1,89 +1,103 @@
 import os
-import json
-import torch
+from typing import Any, Dict, List
+
 import fsspec
 import numpy as np
-from typing import Dict, Tuple, List
+import torch
 from coqpit import Coqpit
 
-from torch.utils.data.sampler import WeightedRandomSampler
+from TTS.config import check_config_and_model_args
+from TTS.tts.utils.managers import BaseIDManager
 
-class LanguageManager:
+
+class LanguageManager(BaseIDManager):
     """Manage the languages for multi-lingual 🐸TTS models. Load a datafile and parse the information
     in a way that can be queried by language.
 
     Args:
-        language_id_file_path (str, optional): Path to the metafile that maps language names to ids used by
+        language_ids_file_path (str, optional): Path to the metafile that maps language names to ids used by
         TTS models. Defaults to "".
+        config (Coqpit, optional): Coqpit config that contains the language information in the datasets filed.
+        Defaults to None.
 
     Examples:
-        >>> manager = LanguageManager(language_id_file_path=language_id_file_path)
+        >>> manager = LanguageManager(language_ids_file_path=language_ids_file_path)
         >>> language_id_mapper = manager.language_ids
     """
-    language_id_mapping: Dict = {}
+
     def __init__(
         self,
-        language_id_file_path: str = "",
+        language_ids_file_path: str = "",
+        config: Coqpit = None,
     ):
-        if language_id_file_path:
-            self.set_language_ids_from_file(language_id_file_path)
+        super().__init__(id_file_path=language_ids_file_path)
 
-    @staticmethod
-    def _load_json(json_file_path: str) -> Dict:
-        with fsspec.open(json_file_path, "r") as f:
-            return json.load(f)
-
-    @staticmethod
-    def _save_json(json_file_path: str, data: dict) -> None:
-        with fsspec.open(json_file_path, "w") as f:
-            json.dump(data, f, indent=4)
+        if config:
+            self.set_language_ids_from_config(config)
 
     @property
     def num_languages(self) -> int:
-        return len(list(self.language_id_mapping.keys()))
+        return len(list(self.ids.keys()))
 
     @property
     def language_names(self) -> List:
-        return list(self.language_id_mapping.keys())
+        return list(self.ids.keys())
 
     @staticmethod
-    def parse_languages_from_data(items: list) -> Tuple[Dict, int]:
-        """Parse language IDs from data samples retured by `load_meta_data()`.
+    def parse_language_ids_from_config(c: Coqpit) -> Dict:
+        """Set language id from config.
 
         Args:
-            items (list): Data sampled returned by `load_meta_data()`.
+            c (Coqpit): Config
 
         Returns:
-            Tuple[Dict, int]: language IDs and number of languages.
+            Tuple[Dict, int]: Language ID mapping and the number of languages.
         """
-        languages = sorted({item[3] for item in items})
-        language_ids = {name: i for i, name in enumerate(languages)}
-        num_languages = len(language_ids)
-        return language_ids, num_languages
+        languages = set({})
+        for dataset in c.datasets:
+            if "language" in dataset:
+                languages.add(dataset["language"])
+            else:
+                raise ValueError(f"Dataset {dataset['name']} has no language specified.")
+        return {name: i for i, name in enumerate(sorted(list(languages)))}
 
-    def set_language_ids_from_data(self, items: List) -> None:
-        """Set language IDs from data samples.
+    def set_language_ids_from_config(self, c: Coqpit) -> None:
+        """Set language IDs from config samples.
 
         Args:
-            items (List): Data sampled returned by `load_meta_data()`.
+            c (Coqpit): Config.
         """
-        self.language_id_mapping, _ = self.parse_languages_from_data(items)
+        self.ids = self.parse_language_ids_from_config(c)
 
-    def set_language_ids_from_file(self, file_path: str) -> None:
-        """Load language ids from a json file.
+    @staticmethod
+    def parse_ids_from_data(items: List, parse_key: str) -> Any:
+        raise NotImplementedError
 
-        Args:
-            file_path (str): Path to the target json file.
-        """
-        self.language_id_mapping = self._load_json(file_path)
+    def set_ids_from_data(self, items: List, parse_key: str) -> Any:
+        raise NotImplementedError
 
-    def save_language_ids_to_file(self, file_path: str) -> None:
+    def save_ids_to_file(self, file_path: str) -> None:
         """Save language IDs to a json file.
 
         Args:
             file_path (str): Path to the output file.
         """
-        self._save_json(file_path, self.language_id_mapping)
+        self._save_json(file_path, self.ids)
+
+    @staticmethod
+    def init_from_config(config: Coqpit) -> "LanguageManager":
+        """Initialize the language manager from a Coqpit config.
+
+        Args:
+            config (Coqpit): Coqpit config.
+        """
+        language_manager = None
+        if check_config_and_model_args(config, "use_language_embedding", True):
+            if config.get("language_ids_file", None):
+                language_manager = LanguageManager(language_ids_file_path=config.language_ids_file)
+            language_manager = LanguageManager(config=config)
+        return language_manager
+
 
 def _set_file_path(path):
     """Find the language_ids.json under the given path or the above it.
@@ -97,40 +111,15 @@ def _set_file_path(path):
         return path_continue
     return None
 
-def get_language_manager(c: Coqpit, data: List = None, restore_path: str = None) -> LanguageManager:
-    """Initiate a `LanguageManager` instance by the provided config.
 
-    Args:
-        c (Coqpit): Model configuration.
-        restore_path (str): Path to a previous training folder.
-        data (List): Data sampled returned by `load_meta_data()`. Defaults to None.
-        out_path (str, optional): Save the generated language IDs to a output path. Defaults to None.
-
-    Returns:
-        SpeakerManager: initialized and ready to use instance.
-    """
-    language_manager = LanguageManager()
-    if c.use_language_embedding:
-        if data is not None:
-            language_manager.set_language_ids_from_data(data)
-        if restore_path:
-            language_file = _set_file_path(restore_path)
-            # restoring language manager from a previous run.
-            if language_file:
-                language_manager.set_language_ids_from_file(language_file)
-        if  language_manager.num_languages > 0:
-            print(
-                " > Language manager is loaded with {} languages: {}".format(
-                    language_manager.num_languages, ", ".join(language_manager.language_names)
-                )
-            )
-    return language_manager
-
-def get_language_weighted_sampler(items: list):
-    language_names = np.array([item[3] for item in items])
+def get_language_balancer_weights(items: list):
+    language_names = np.array([item["language"] for item in items])
     unique_language_names = np.unique(language_names).tolist()
     language_ids = [unique_language_names.index(l) for l in language_names]
     language_count = np.array([len(np.where(language_names == l)[0]) for l in unique_language_names])
-    weight_language = 1. / language_count
-    dataset_samples_weight = torch.from_numpy(np.array([weight_language[l] for l in language_ids])).double()
-    return WeightedRandomSampler(dataset_samples_weight, len(dataset_samples_weight))
+    weight_language = 1.0 / language_count
+    # get weight for each sample
+    dataset_samples_weight = np.array([weight_language[l] for l in language_ids])
+    # normalize
+    dataset_samples_weight = dataset_samples_weight / np.linalg.norm(dataset_samples_weight)
+    return torch.from_numpy(dataset_samples_weight).float()

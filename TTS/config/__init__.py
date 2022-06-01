@@ -36,10 +36,11 @@ def register_config(model_name: str) -> Coqpit:
         Coqpit: config class.
     """
     config_class = None
-    paths = ["TTS.tts.configs", "TTS.vocoder.configs", "TTS.speaker_encoder"]
+    config_name = model_name + "_config"
+    paths = ["TTS.tts.configs", "TTS.vocoder.configs", "TTS.encoder.configs"]
     for path in paths:
         try:
-            config_class = find_module(path, model_name + "_config")
+            config_class = find_module(path, config_name)
         except ModuleNotFoundError:
             pass
     if config_class is None:
@@ -94,3 +95,38 @@ def load_config(config_path: str) -> None:
     config = config_class()
     config.from_dict(config_dict)
     return config
+
+
+def check_config_and_model_args(config, arg_name, value):
+    """Check the give argument in `config.model_args` if exist or in `config` for
+    the given value.
+
+    Return False if the argument does not exist in `config.model_args` or `config`.
+    This is to patch up the compatibility between models with and without `model_args`.
+
+    TODO: Remove this in the future with a unified approach.
+    """
+    if hasattr(config, "model_args"):
+        if arg_name in config.model_args:
+            return config.model_args[arg_name] == value
+    if hasattr(config, arg_name):
+        return config[arg_name] == value
+    return False
+
+
+def get_from_config_or_model_args(config, arg_name):
+    """Get the given argument from `config.model_args` if exist or in `config`."""
+    if hasattr(config, "model_args"):
+        if arg_name in config.model_args:
+            return config.model_args[arg_name]
+    return config[arg_name]
+
+
+def get_from_config_or_model_args_with_default(config, arg_name, def_val):
+    """Get the given argument from `config.model_args` if exist or in `config`."""
+    if hasattr(config, "model_args"):
+        if arg_name in config.model_args:
+            return config.model_args[arg_name]
+    if hasattr(config, arg_name):
+        return config[arg_name]
+    return def_val

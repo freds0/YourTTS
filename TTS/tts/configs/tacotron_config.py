@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List
 
-from TTS.tts.configs.shared_configs import BaseTTSConfig, GSTConfig
+from TTS.tts.configs.shared_configs import BaseTTSConfig, CapacitronVAEConfig, GSTConfig
 
 
 @dataclass
@@ -10,7 +10,7 @@ class TacotronConfig(BaseTTSConfig):
 
     Example:
 
-        >>> from TTS.tts.configs import TacotronConfig
+        >>> from TTS.tts.configs.tacotron_config import TacotronConfig
         >>> config = TacotronConfig()
 
     Args:
@@ -23,6 +23,10 @@ class TacotronConfig(BaseTTSConfig):
         gst_style_input (str):
             Path to the wav file used at inference to set the speech style through GST. If `GST` is enabled and
             this is not defined, the model uses a zero vector as an input. Defaults to None.
+        use_capacitron_vae (bool):
+            enable / disable the use of Capacitron modules. Defaults to False.
+        capacitron_vae (CapacitronConfig):
+            Instance of `CapacitronConfig` class.
         num_chars (int):
             Number of characters used by the model. It must be defined before initializing the model. Defaults to None.
         num_speakers (int):
@@ -83,6 +87,8 @@ class TacotronConfig(BaseTTSConfig):
         ddc_r (int):
             reduction rate used by the coarse decoder when `double_decoder_consistency` is in use. Set this
             as a multiple of the `r` value. Defaults to 6.
+        speakers_file (str):
+            Path to the speaker mapping file for the Speaker Manager. Defaults to None.
         use_speaker_embedding (bool):
             enable / disable using speaker embeddings for multi-speaker models. If set True, the model is
             in the multi-speaker mode. Defaults to False.
@@ -106,7 +112,7 @@ class TacotronConfig(BaseTTSConfig):
             Weight decay coefficient. Defaults to `1e-6`.
         grad_clip (float):
             Gradient clipping threshold. Defaults to `5`.
-        seq_len_notm (bool):
+        seq_len_norm (bool):
             enable / disable the sequnce length normalization in the loss functions. If set True, loss of a sample
             is divided by the sequence length. Defaults to False.
         loss_masking (bool):
@@ -140,6 +146,9 @@ class TacotronConfig(BaseTTSConfig):
     use_gst: bool = False
     gst: GSTConfig = None
     gst_style_input: str = None
+
+    use_capacitron_vae: bool = False
+    capacitron_vae: CapacitronVAEConfig = None
 
     # model specific params
     num_speakers: int = 1
@@ -176,6 +185,7 @@ class TacotronConfig(BaseTTSConfig):
     ddc_r: int = 6
 
     # multi-speaker settings
+    speakers_file: str = None
     use_speaker_embedding: bool = False
     speaker_embedding_dim: int = 512
     use_d_vector_file: bool = False

@@ -3,7 +3,7 @@ import json
 import os
 import pickle as pickle_tts
 import shutil
-from typing import Any
+from typing import Any, Callable, Dict, Union
 
 import fsspec
 import torch
@@ -26,7 +26,7 @@ class AttrDict(dict):
         self.__dict__ = self
 
 
-def copy_model_files(config: Coqpit, out_path, new_fields):
+def copy_model_files(config: Coqpit, out_path, new_fields=None):
     """Copy config.json and other model files to training folder and add
     new fields.
 
@@ -38,7 +38,7 @@ def copy_model_files(config: Coqpit, out_path, new_fields):
     """
     copy_config_path = os.path.join(out_path, "config.json")
     # add extra information fields
-    if new_fields is not None:
+    if new_fields:
         config.update(new_fields, allow_new=True)
     # TODO: Revert to config.save_json() once Coqpit supports arbitrary paths.
     with fsspec.open(copy_config_path, "w", encoding="utf8") as f:
@@ -54,18 +54,23 @@ def copy_model_files(config: Coqpit, out_path, new_fields):
                     shutil.copyfileobj(source_file, target_file)
 
 
-def load_fsspec(path: str, **kwargs) -> Any:
+def load_fsspec(
+    path: str,
+    map_location: Union[str, Callable, torch.device, Dict[Union[str, torch.device], Union[str, torch.device]]] = None,
+    **kwargs,
+) -> Any:
     """Like torch.load but can load from other locations (e.g. s3:// , gs://).
 
     Args:
         path: Any path or url supported by fsspec.
+        map_location: torch.device or str.
         **kwargs: Keyword arguments forwarded to torch.load.
 
     Returns:
         Object stored in path.
     """
     with fsspec.open(path, "rb") as f:
-        return torch.load(f, **kwargs)
+        return torch.load(f, map_location=map_location, **kwargs)
 
 
 def load_checkpoint(model, checkpoint_path, use_cuda=False, eval=False):  # pylint: disable=redefined-builtin
@@ -101,6 +106,8 @@ def save_model(config, model, optimizer, scaler, current_step, epoch, output_pat
         model_state = model.state_dict()
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
+    elif optimizer.__class__.__name__ == "CapacitronOptimizer":
+        optimizer_state = [optimizer.primary_optimizer.state_dict(), optimizer.secondary_optimizer.state_dict()]
     else:
         optimizer_state = optimizer.state_dict() if optimizer is not None else None
 
@@ -135,7 +142,7 @@ def save_checkpoint(
     output_folder,
     **kwargs,
 ):
-    file_name = "checkpoint_{}.pth.tar".format(current_step)
+    file_name = "checkpoint_{}.pth".format(current_step)
     checkpoint_path = os.path.join(output_folder, file_name)
     print("\n > CHECKPOINT : {}".format(checkpoint_path))
     save_model(
@@ -165,7 +172,7 @@ def save_best_model(
     **kwargs,
 ):
     if current_loss < best_loss:
-        best_model_name = f"best_model_{current_step}.pth.tar"
+        best_model_name = f"best_model_{current_step}.pth"
         checkpoint_path = os.path.join(out_path, best_model_name)
         print(" > BEST MODEL : {}".format(checkpoint_path))
         save_model(
@@ -182,12 +189,12 @@ def save_best_model(
         fs = fsspec.get_mapper(out_path).fs
         # only delete previous if current is saved successfully
         if not keep_all_best or (current_step < keep_after):
-            model_names = fs.glob(os.path.join(out_path, "best_model*.pth.tar"))
+            model_names = fs.glob(os.path.join(out_path, "best_model*.pth"))
             for model_name in model_names:
                 if os.path.basename(model_name) != best_model_name:
                     fs.rm(model_name)
         # create a shortcut which always points to the currently best model
-        shortcut_name = "best_model.pth.tar"
+        shortcut_name = "best_model.pth"
         shortcut_path = os.path.join(out_path, shortcut_name)
         fs.copy(checkpoint_path, shortcut_path)
         best_loss = current_loss

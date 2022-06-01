@@ -17,7 +17,7 @@ class VitsConfig(BaseTTSConfig):
             Model architecture arguments. Defaults to `VitsArgs()`.
 
         grad_clip (List):
-            Gradient clipping thresholds for each optimizer. Defaults to `[5.0, 5.0]`.
+            Gradient clipping thresholds for each optimizer. Defaults to `[1000.0, 1000.0]`.
 
         lr_gen (float):
             Initial learning rate for the generator. Defaults to 0.0002.
@@ -67,12 +67,6 @@ class VitsConfig(BaseTTSConfig):
         compute_linear_spec (bool):
             If true, the linear spectrogram is computed and returned alongside the mel output. Do not change. Defaults to `True`.
 
-        min_seq_len (int):
-            Minimum text length to be considered for training. Defaults to `13`.
-
-        max_seq_len (int):
-            Maximum text length to be considered for training. Defaults to `500`.
-
         r (int):
             Number of spectrogram frames to be generated at a time. Do not change. Defaults to `1`.
 
@@ -82,12 +76,18 @@ class VitsConfig(BaseTTSConfig):
         test_sentences (List[List]):
             List of sentences with speaker and language information to be used for testing.
 
+        language_ids_file (str):
+            Path to the language ids file.
+
+        use_language_embedding (bool):
+            If true, language embedding is used. Defaults to `False`.
+
     Note:
         Check :class:`TTS.tts.configs.shared_configs.BaseTTSConfig` for the inherited parameters.
 
     Example:
 
-        >>> from TTS.tts.configs import VitsConfig
+        >>> from TTS.tts.configs.vits_config import VitsConfig
         >>> config = VitsConfig()
     """
 
@@ -121,8 +121,6 @@ class VitsConfig(BaseTTSConfig):
     compute_linear_spec: bool = True
 
     # overrides
-    min_seq_len: int = 32
-    max_seq_len: int = 1000
     r: int = 1  # DO NOT CHANGE
     add_blank: bool = True
 
@@ -136,3 +134,22 @@ class VitsConfig(BaseTTSConfig):
             ["Prior to November 22, 1963."],
         ]
     )
+
+    # multi-speaker settings
+    # use speaker embedding layer
+    num_speakers: int = 0
+    use_speaker_embedding: bool = False
+    speakers_file: str = None
+    speaker_embedding_channels: int = 256
+    language_ids_file: str = None
+    use_language_embedding: bool = False
+
+    # use d-vectors
+    use_d_vector_file: bool = False
+    d_vector_file: str = None
+    d_vector_dim: int = None
+
+    def __post_init__(self):
+        for key, val in self.model_args.items():
+            if hasattr(self, key):
+                self[key] = val

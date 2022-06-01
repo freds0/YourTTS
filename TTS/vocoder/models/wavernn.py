@@ -5,9 +5,9 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from coqpit import Coqpit
+from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
@@ -222,13 +222,10 @@ class Wavernn(BaseVocoder):
             samples at once. The Subscale WaveRNN produces 16 samples per step without loss of quality and offers an
             orthogonal method for increasing sampling efficiency.
         """
-        super().__init__()
-
-        self.args = config.model_params
-        self.config = config
+        super().__init__(config)
 
         if isinstance(self.args.mode, int):
-            self.n_classes = 2 ** self.args.mode
+            self.n_classes = 2**self.args.mode
         elif self.args.mode == "mold":
             self.n_classes = 3 * 10
         elif self.args.mode == "gauss":
@@ -571,11 +568,13 @@ class Wavernn(BaseVocoder):
         return self.train_step(batch, criterion)
 
     @torch.no_grad()
-    def test_run(
-        self, ap: AudioProcessor, samples: List[Dict], output: Dict  # pylint: disable=unused-argument
+    def test(
+        self, assets: Dict, test_loader: "DataLoader", output: Dict  # pylint: disable=unused-argument
     ) -> Tuple[Dict, Dict]:
+        ap = assets["audio_processor"]
         figures = {}
         audios = {}
+        samples = test_loader.dataset.load_test_samples(1)
         for idx, sample in enumerate(samples):
             x = torch.FloatTensor(sample[0])
             x = x.to(next(self.parameters()).device)
@@ -600,20 +599,21 @@ class Wavernn(BaseVocoder):
     def get_data_loader(  # pylint: disable=no-self-use
         self,
         config: Coqpit,
-        ap: AudioProcessor,
+        assets: Dict,
         is_eval: True,
-        data_items: List,
+        samples: List,
         verbose: bool,
         num_gpus: int,
     ):
+        ap = assets["audio_processor"]
         dataset = WaveRNNDataset(
             ap=ap,
-            items=data_items,
+            items=samples,
             seq_len=config.seq_len,
             hop_len=ap.hop_length,
-            pad=config.model_params.pad,
-            mode=config.model_params.mode,
-            mulaw=config.model_params.mulaw,
+            pad=config.model_args.pad,
+            mode=config.model_args.mode,
+            mulaw=config.model_args.mulaw,
             is_training=not is_eval,
             verbose=verbose,
         )
@@ -632,3 +632,7 @@ class Wavernn(BaseVocoder):
     def get_criterion(self):
         # define train functions
         return WaveRNNLoss(self.args.mode)
+
+    @staticmethod
+    def init_from_config(config: "WavernnConfig"):
+        return Wavernn(config)

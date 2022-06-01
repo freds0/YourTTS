@@ -23,72 +23,76 @@ def str2bool(v):
 
 
 def main():
-    # pylint: disable=bad-option-value
+    description = """Synthesize speech on command line.
+
+You can either use your trained model or choose a model from the provided list.
+
+If you don't specify any models, then it uses LJSpeech based English model.
+
+## Example Runs
+
+### Single Speaker Models
+
+- List provided models:
+
+    ```
+    $ tts --list_models
+    ```
+
+- Run TTS with default models:
+
+    ```
+    $ tts --text "Text for TTS"
+    ```
+
+- Run a TTS model with its default vocoder model:
+
+    ```
+    $ tts --text "Text for TTS" --model_name "<language>/<dataset>/<model_name>
+    ```
+
+- Run with specific TTS and vocoder models from the list:
+
+    ```
+    $ tts --text "Text for TTS" --model_name "<language>/<dataset>/<model_name>" --vocoder_name "<language>/<dataset>/<model_name>" --output_path
+    ```
+
+- Run your own TTS model (Using Griffin-Lim Vocoder):
+
+    ```
+    $ tts --text "Text for TTS" --model_path path/to/model.pth --config_path path/to/config.json --out_path output/path/speech.wav
+    ```
+
+- Run your own TTS and Vocoder models:
+    ```
+    $ tts --text "Text for TTS" --model_path path/to/config.json --config_path path/to/model.pth --out_path output/path/speech.wav
+        --vocoder_path path/to/vocoder.pth --vocoder_config_path path/to/vocoder_config.json
+    ```
+
+### Multi-speaker Models
+
+- List the available speakers and choose as <speaker_id> among them:
+
+    ```
+    $ tts --model_name "<language>/<dataset>/<model_name>"  --list_speaker_idxs
+    ```
+
+- Run the multi-speaker TTS model with the target speaker ID:
+
+    ```
+    $ tts --text "Text for TTS." --out_path output/path/speech.wav --model_name "<language>/<dataset>/<model_name>"  --speaker_idx <speaker_id>
+    ```
+
+- Run your own multi-speaker TTS model:
+
+    ```
+    $ tts --text "Text for TTS" --out_path output/path/speech.wav --model_path path/to/config.json --config_path path/to/model.pth --speakers_file_path path/to/speaker.json --speaker_idx <speaker_id>
+    ```
+    """
+    # We remove Markdown code formatting programmatically here to allow us to copy-and-paste from main README to keep
+    # documentation in sync more easily.
     parser = argparse.ArgumentParser(
-        description="""Synthesize speech on command line.\n\n"""
-        """You can either use your trained model or choose a model from the provided list.\n\n"""
-        """If you don't specify any models, then it uses LJSpeech based English model.\n\n"""
-        """
-    # Example Runs:
-
-    ## Single Speaker Models
-
-    - list provided models
-
-    ```
-    $ ./TTS/bin/synthesize.py --list_models
-    ```
-
-    - run tts with default models.
-
-    ```
-    $ ./TTS/bin synthesize.py --text "Text for TTS"
-    ```
-
-    - run a tts model with its default vocoder model.
-
-    ```
-    $ ./TTS/bin synthesize.py --text "Text for TTS" --model_name "<language>/<dataset>/<model_name>
-    ```
-
-    - run with specific tts and vocoder models from the list
-
-    ```
-    $ ./TTS/bin/synthesize.py --text "Text for TTS" --model_name "<language>/<dataset>/<model_name>" --vocoder_name "<language>/<dataset>/<model_name>" --output_path
-    ```
-
-    - run your own TTS model (Using Griffin-Lim Vocoder)
-
-    ```
-    $ ./TTS/bin/synthesize.py --text "Text for TTS" --model_path path/to/model.pth.tar --config_path path/to/config.json --out_path output/path/speech.wav
-    ```
-
-    - run your own TTS and Vocoder models
-    ```
-    $ ./TTS/bin/synthesize.py --text "Text for TTS" --model_path path/to/config.json --config_path path/to/model.pth.tar --out_path output/path/speech.wav
-        --vocoder_path path/to/vocoder.pth.tar --vocoder_config_path path/to/vocoder_config.json
-    ```
-
-    ## MULTI-SPEAKER MODELS
-
-    - list the available speakers and choose as <speaker_id> among them.
-
-    ```
-    $ ./TTS/bin/synthesize.py --model_name "<language>/<dataset>/<model_name>"  --list_speaker_idxs
-    ```
-
-    - run the multi-speaker TTS model with the target speaker ID.
-
-    ```
-    $ ./TTS/bin/synthesize.py --text "Text for TTS." --out_path output/path/speech.wav --model_name "<language>/<dataset>/<model_name>"  --speaker_idx <speaker_id>
-    ```
-
-    - run your own multi-speaker TTS model.
-
-    ```
-    $ ./TTS/bin/synthesize.py --text "Text for TTS" --out_path output/path/speech.wav --model_path path/to/config.json --config_path path/to/model.pth.tar --speakers_file_path path/to/speaker.json --speaker_idx <speaker_id>
-    ```
-    """,
+        description=description.replace("    ```\n", ""),
         formatter_class=RawTextHelpFormatter,
     )
 
@@ -98,7 +102,7 @@ def main():
         nargs="?",
         const=True,
         default=False,
-        help="list available pre-trained tts and vocoder models.",
+        help="list available pre-trained TTS and vocoder models.",
     )
     parser.add_argument("--text", type=str, default=None, help="Text to generate speech.")
 
@@ -107,7 +111,7 @@ def main():
         "--model_name",
         type=str,
         default="tts_models/en/ljspeech/tacotron2-DDC",
-        help="Name of one of the pre-trained tts models in format <language>/<dataset>/<model_name>",
+        help="Name of one of the pre-trained TTS models in format <language>/<dataset>/<model_name>",
     )
     parser.add_argument(
         "--vocoder_name",
@@ -148,10 +152,17 @@ def main():
 
     # args for multi-speaker synthesis
     parser.add_argument("--speakers_file_path", type=str, help="JSON file for multi-speaker model.", default=None)
+    parser.add_argument("--language_ids_file_path", type=str, help="JSON file for multi-lingual model.", default=None)
     parser.add_argument(
         "--speaker_idx",
         type=str,
         help="Target speaker ID for a multi-speaker TTS model.",
+        default=None,
+    )
+    parser.add_argument(
+        "--language_idx",
+        type=str,
+        help="Target language ID for a multi-lingual TTS model.",
         default=None,
     )
     parser.add_argument(
@@ -160,10 +171,22 @@ def main():
         help="wav file(s) to condition a multi-speaker TTS model with a Speaker Encoder. You can give multiple file paths. The d_vectors is computed as their average.",
         default=None,
     )
-    parser.add_argument("--gst_style", help="Wav path file for GST stylereference.", default=None)
+    parser.add_argument("--gst_style", help="Wav path file for GST style reference.", default=None)
+    parser.add_argument(
+        "--capacitron_style_wav", type=str, help="Wav path file for Capacitron prosody reference.", default=None
+    )
+    parser.add_argument("--capacitron_style_text", type=str, help="Transcription of the reference.", default=None)
     parser.add_argument(
         "--list_speaker_idxs",
         help="List available speaker ids for the defined multi-speaker model.",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=False,
+    )
+    parser.add_argument(
+        "--list_language_idxs",
+        help="List available language ids for the defined multi-lingual model.",
         type=str2bool,
         nargs="?",
         const=True,
@@ -176,11 +199,28 @@ def main():
         help="If true save raw spectogram for further (vocoder) processing in out_path.",
         default=False,
     )
-
+    parser.add_argument(
+        "--reference_wav",
+        type=str,
+        help="Reference wav file to convert in the voice of the speaker_idx or speaker_wav",
+        default=None,
+    )
+    parser.add_argument(
+        "--reference_speaker_idx",
+        type=str,
+        help="speaker ID of the reference_wav speaker (If not provided the embedding will be computed using the Speaker Encoder).",
+        default=None,
+    )
     args = parser.parse_args()
 
     # print the description if either text or list_models is not set
-    if args.text is None and not args.list_models and not args.list_speaker_idxs:
+    if (
+        not args.text
+        and not args.list_models
+        and not args.list_speaker_idxs
+        and not args.list_language_idxs
+        and not args.reference_wav
+    ):
         parser.parse_args(["-h"])
 
     # load model manager
@@ -190,6 +230,7 @@ def main():
     model_path = None
     config_path = None
     speakers_file_path = None
+    language_ids_file_path = None
     vocoder_path = None
     vocoder_config_path = None
     encoder_path = None
@@ -213,6 +254,7 @@ def main():
         model_path = args.model_path
         config_path = args.config_path
         speakers_file_path = args.speakers_file_path
+        language_ids_file_path = args.language_ids_file_path
 
     if args.vocoder_path is not None:
         vocoder_path = args.vocoder_path
@@ -227,6 +269,7 @@ def main():
         model_path,
         config_path,
         speakers_file_path,
+        language_ids_file_path,
         vocoder_path,
         vocoder_config_path,
         encoder_path,
@@ -239,7 +282,15 @@ def main():
         print(
             " > Available speaker ids: (Set --speaker_idx flag to one of these values to use the multi-speaker model."
         )
-        print(synthesizer.tts_model.speaker_manager.speaker_ids)
+        print(synthesizer.tts_model.speaker_manager.ids)
+        return
+
+    # query langauge ids of a multi-lingual model.
+    if args.list_language_idxs:
+        print(
+            " > Available language ids: (Set --language_idx flag to one of these values to use the multi-lingual model."
+        )
+        print(synthesizer.tts_model.language_manager.ids)
         return
 
     # check the arguments against a multi-speaker model.
@@ -251,10 +302,20 @@ def main():
         return
 
     # RUN THE SYNTHESIS
-    print(" > Text: {}".format(args.text))
+    if args.text:
+        print(" > Text: {}".format(args.text))
 
     # kick it
-    wav = synthesizer.tts(args.text, args.speaker_idx, args.speaker_wav)
+    wav = synthesizer.tts(
+        args.text,
+        args.speaker_idx,
+        args.language_idx,
+        args.speaker_wav,
+        reference_wav=args.reference_wav,
+        style_wav=args.capacitron_style_wav,
+        style_text=args.capacitron_style_text,
+        reference_speaker_name=args.reference_speaker_idx,
+    )
 
     # save the results
     print(" > Saving output to {}".format(args.out_path))

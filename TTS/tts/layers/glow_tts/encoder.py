@@ -9,7 +9,7 @@ from TTS.tts.layers.generic.time_depth_sep_conv import TimeDepthSeparableConvBlo
 from TTS.tts.layers.glow_tts.duration_predictor import DurationPredictor
 from TTS.tts.layers.glow_tts.glow import ResidualConv1dLayerNormBlock
 from TTS.tts.layers.glow_tts.transformer import RelativePositionTransformer
-from TTS.tts.utils.data import sequence_mask
+from TTS.tts.utils.helpers import sequence_mask
 
 
 class Encoder(nn.Module):
@@ -101,7 +101,7 @@ class Encoder(nn.Module):
         self.encoder_type = encoder_type
         # embedding layer
         self.emb = nn.Embedding(num_chars, hidden_channels)
-        nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
+        nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
         # init encoder module
         if encoder_type.lower() == "rel_pos_transformer":
             if use_prenet:
@@ -165,9 +165,9 @@ class Encoder(nn.Module):
         # set duration predictor input
         if g is not None:
             g_exp = g.expand(-1, -1, x.size(-1))
-            x_dp = torch.cat([torch.detach(x), g_exp], 1)
+            x_dp = torch.cat([x.detach(), g_exp], 1)
         else:
-            x_dp = torch.detach(x)
+            x_dp = x.detach()
         # final projection layer
         x_m = self.proj_m(x) * x_mask
         if not self.mean_only:

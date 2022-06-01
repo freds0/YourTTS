@@ -29,14 +29,12 @@ def preprocess_wav_files(out_path: str, config: Coqpit, ap: AudioProcessor):
         mel = ap.melspectrogram(y)
         np.save(mel_path, mel)
         if isinstance(config.mode, int):
-            quant = (
-                ap.mulaw_encode(y, qc=config.mode) if config.model_params.mulaw else ap.quantize(y, bits=config.mode)
-            )
+            quant = ap.mulaw_encode(y, qc=config.mode) if config.model_args.mulaw else ap.quantize(y, bits=config.mode)
             np.save(quant_path, quant)
 
 
-def find_wav_files(data_path):
-    wav_paths = glob.glob(os.path.join(data_path, "**", "*.wav"), recursive=True)
+def find_wav_files(data_path, file_ext="wav"):
+    wav_paths = glob.glob(os.path.join(data_path, "**", f"*.{file_ext}"), recursive=True)
     return wav_paths
 
 
@@ -45,8 +43,9 @@ def find_feat_files(data_path):
     return feat_paths
 
 
-def load_wav_data(data_path, eval_split_size):
-    wav_paths = find_wav_files(data_path)
+def load_wav_data(data_path, eval_split_size, file_ext="wav"):
+    wav_paths = find_wav_files(data_path, file_ext=file_ext)
+    assert len(wav_paths) > 0, f" [!] {data_path} is empty."
     np.random.seed(0)
     np.random.shuffle(wav_paths)
     return wav_paths[:eval_split_size], wav_paths[eval_split_size:]
@@ -59,7 +58,7 @@ def load_wav_feat_data(data_path, feat_path, eval_split_size):
     wav_paths.sort(key=lambda x: Path(x).stem)
     feat_paths.sort(key=lambda x: Path(x).stem)
 
-    assert len(wav_paths) == len(feat_paths)
+    assert len(wav_paths) == len(feat_paths), f" [!] {len(wav_paths)} vs {feat_paths}"
     for wav, feat in zip(wav_paths, feat_paths):
         wav_name = Path(wav).stem
         feat_name = Path(feat).stem

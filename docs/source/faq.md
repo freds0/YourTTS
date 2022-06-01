@@ -7,7 +7,7 @@ We tried to collect common issues and questions we receive about 🐸TTS. It is 
 - If you feel like it's a bug to be fixed, then prefer Github issues with the same level of scrutiny.
 
 ## What are the requirements of a good 🐸TTS dataset?
-* https://github.com/coqui-ai/TTS/wiki/What-makes-a-good-TTS-dataset
+* {ref}`See this page <what_makes_a_good_dataset>`
 
 ## How should I choose the right model?
 - First, train Tacotron. It is smaller and faster to experiment with. If it performs poorly, try Tacotron2.
@@ -59,8 +59,7 @@ We tried to collect common issues and questions we receive about 🐸TTS. It is 
 
 6. Train your model.
     - SingleGPU training: ```CUDA_VISIBLE_DEVICES="0" python train_tts.py --config_path config.json```
-    - MultiGPU training: ```CUDA_VISIBLE_DEVICES="0,1,2" python distribute.py --script train_tts.py --config_path config.json```
-        - This command uses all the GPUs given in ```CUDA_VISIBLE_DEVICES```. If you don't specify, it uses all the GPUs available.
+    - MultiGPU training: ```python3 -m trainer.distribute --gpus "0,1" --script TTS/bin/train_tts.py --config_path config.json```
 
 **Note:** You can also train your model using pure 🐍 python. Check ```{eval-rst} :ref: 'tutorial_for_nervous_beginners'```.
 

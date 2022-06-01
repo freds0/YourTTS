@@ -8,13 +8,12 @@ from torch import nn
 from torch.nn.utils import weight_norm
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
+from trainer.trainer_utils import get_optimizer, get_scheduler
 
-from TTS.model import BaseModel
-from TTS.utils.audio import AudioProcessor
 from TTS.utils.io import load_fsspec
-from TTS.utils.trainer_utils import get_optimizer, get_scheduler
 from TTS.vocoder.datasets import WaveGradDataset
 from TTS.vocoder.layers.wavegrad import Conv1d, DBlock, FiLM, UBlock
+from TTS.vocoder.models.base_vocoder import BaseVocoder
 from TTS.vocoder.utils.generic_utils import plot_results
 
 
@@ -33,7 +32,7 @@ class WavegradArgs(Coqpit):
     )
 
 
-class Wavegrad(BaseModel):
+class Wavegrad(BaseVocoder):
     """🐸 🌊 WaveGrad 🌊 model.
     Paper - https://arxiv.org/abs/2009.00713
 
@@ -58,7 +57,7 @@ class Wavegrad(BaseModel):
 
     # pylint: disable=dangerous-default-value
     def __init__(self, config: Coqpit):
-        super().__init__()
+        super().__init__(config)
         self.config = config
         self.use_weight_norm = config.model_params.use_weight_norm
         self.hop_len = np.prod(config.model_params.upsample_factors)
@@ -154,7 +153,7 @@ class Wavegrad(BaseModel):
         noise_scale = l_a + torch.rand(y_0.shape[0]).to(y_0) * (l_b - l_a)
         noise_scale = noise_scale.unsqueeze(1)
         noise = torch.randn_like(y_0)
-        noisy_audio = noise_scale * y_0 + (1.0 - noise_scale ** 2) ** 0.5 * noise
+        noisy_audio = noise_scale * y_0 + (1.0 - noise_scale**2) ** 0.5 * noise
         return noise.unsqueeze(1), noisy_audio.unsqueeze(1), noise_scale[:, 0]
 
     def compute_noise_level(self, beta):
@@ -162,8 +161,8 @@ class Wavegrad(BaseModel):
         self.num_steps = len(beta)
         alpha = 1 - beta
         alpha_hat = np.cumprod(alpha)
-        noise_level = np.concatenate([[1.0], alpha_hat ** 0.5], axis=0)
-        noise_level = alpha_hat ** 0.5
+        noise_level = np.concatenate([[1.0], alpha_hat**0.5], axis=0)
+        noise_level = alpha_hat**0.5
 
         # pylint: disable=not-callable
         self.beta = torch.tensor(beta.astype(np.float32))
@@ -171,7 +170,7 @@ class Wavegrad(BaseModel):
         self.alpha_hat = torch.tensor(alpha_hat.astype(np.float32))
         self.noise_level = torch.tensor(noise_level.astype(np.float32))
 
-        self.c1 = 1 / self.alpha ** 0.5
+        self.c1 = 1 / self.alpha**0.5
         self.c2 = (1 - self.alpha) / (1 - self.alpha_hat) ** 0.5
         self.sigma = ((1.0 - self.alpha_hat[:-1]) / (1.0 - self.alpha_hat[1:]) * self.beta[1:]) ** 0.5
 
@@ -257,21 +256,27 @@ class Wavegrad(BaseModel):
         loss = criterion(noise, noise_hat)
         return {"model_output": noise_hat}, {"loss": loss}
 
-    def train_log(self, ap: AudioProcessor, batch: Dict, outputs: Dict) -> Tuple[Dict, np.ndarray]:
-        return None, None
+    def train_log(  # pylint: disable=no-self-use
+        self, batch: Dict, outputs: Dict, logger: "Logger", assets: Dict, steps: int  # pylint: disable=unused-argument
+    ) -> Tuple[Dict, np.ndarray]:
+        pass
 
     @torch.no_grad()
     def eval_step(self, batch: Dict, criterion: nn.Module) -> Tuple[Dict, Dict]:
         return self.train_step(batch, criterion)
 
-    def eval_log(self, ap: AudioProcessor, batch: Dict, outputs: Dict) -> Tuple[Dict, np.ndarray]:
-        return None, None
+    def eval_log(  # pylint: disable=no-self-use
+        self, batch: Dict, outputs: Dict, logger: "Logger", assets: Dict, steps: int  # pylint: disable=unused-argument
+    ) -> None:
+        pass
 
-    def test_run(self, ap: AudioProcessor, samples: List[Dict], ouputs: Dict):  # pylint: disable=unused-argument
+    def test(self, assets: Dict, test_loader: "DataLoader", outputs=None):  # pylint: disable=unused-argument
         # setup noise schedule and inference
+        ap = assets["audio_processor"]
         noise_schedule = self.config["test_noise_schedule"]
         betas = np.linspace(noise_schedule["min_val"], noise_schedule["max_val"], noise_schedule["num_steps"])
         self.compute_noise_level(betas)
+        samples = test_loader.dataset.load_test_samples(1)
         for sample in samples:
             x = sample[0]
             x = x[None, :, :].to(next(self.parameters()).device)
@@ -291,7 +296,8 @@ class Wavegrad(BaseModel):
     def get_scheduler(self, optimizer):
         return get_scheduler(self.config.lr_scheduler, self.config.lr_scheduler_params, optimizer)
 
-    def get_criterion(self):
+    @staticmethod
+    def get_criterion():
         return torch.nn.L1Loss()
 
     @staticmethod
@@ -301,12 +307,11 @@ class Wavegrad(BaseModel):
         y = y.unsqueeze(1)
         return {"input": m, "waveform": y}
 
-    def get_data_loader(
-        self, config: Coqpit, ap: AudioProcessor, is_eval: True, data_items: List, verbose: bool, num_gpus: int
-    ):
+    def get_data_loader(self, config: Coqpit, assets: Dict, is_eval: True, samples: List, verbose: bool, num_gpus: int):
+        ap = assets["audio_processor"]
         dataset = WaveGradDataset(
             ap=ap,
-            items=data_items,
+            items=samples,
             seq_len=self.config.seq_len,
             hop_len=ap.hop_length,
             pad_short=self.config.pad_short,
@@ -333,3 +338,7 @@ class Wavegrad(BaseModel):
         noise_schedule = self.config["train_noise_schedule"]
         betas = np.linspace(noise_schedule["min_val"], noise_schedule["max_val"], noise_schedule["num_steps"])
         self.compute_noise_level(betas)
+
+    @staticmethod
+    def init_from_config(config: "WavegradConfig"):
+        return Wavegrad(config)
