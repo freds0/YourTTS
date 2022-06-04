@@ -13,7 +13,9 @@ If you are only interested in train models, clone 🐸TTS and install it locally
 
 ```bash
 git clone https://github.com/freds0/YourTTS/
-pip install -e .[all,dev,notebooks,tf]  # Select the relevant extras
+conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch-lts
+cd YourTTS
+pip install -e .
 ```
 
 If you are on Ubuntu (Debian), you can also run following commands for installation.
@@ -26,6 +28,18 @@ $ make install
 ## Download Checkpoints and Configs
 
 We can download the latest checkpoint and configs from [Coqui released model](https://github.com/coqui-ai/TTS/releases/download/v0.5.0_models/tts_models--multilingual--multi-dataset--your_tts.zip).
+
+Alternatively, you can synthesize some text: 
+
+```bash
+tts  --text "This is an example!" --model_name tts_models/multilingual/multi-dataset/your_tts  --speaker_wav target_speaker_wav.wav --language_idx "en"
+```
+
+where "target_speaker_wav.wav" is a reference file. This way the checkpoints and configs will be downloaded to the directory:
+
+```bash
+ls ~/.local/shared/tts/ 
+```
 
 ## Training
 
@@ -58,10 +72,9 @@ tts  --text "This is an example!" --model_name tts_models/multilingual/multi-dat
 
 ### Voice Conversion
 
-To use the frog TTS released YourTTS model for voice conversion use the following command:
+To use the TTS released YourTTS model for voice conversion use the following command:
 
 ```bash
-tts --model_name tts_models/multilingual/multi-dataset/your_tts  --speaker_wav target_speaker_wav.wav --reference_wav  target_content_wav.wav --language_idx "en"
+tts --model_name tts_models/multilingual/multi-dataset/your_tts  --speaker_wav source_speaker_wav.wav --reference_wav  target_content_wav.wav --language_idx "en"
 ```
-Considering the "target_content_wav.wav" as the reference wave file to convert into the voice of the "target_speaker_wav.wav" speaker.
-
+Considering the "target_content_wav.wav" as the reference wave file to convert into the voice of the "source_speaker_wav.wav" speaker.
