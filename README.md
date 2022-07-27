@@ -22,6 +22,12 @@ cd YourTTS
 pip install -e .
 ```
 
+If you cann't install because of llvmlight:
+
+```bash
+$ pip install llvmlite==0.38.1 --ignore-installed
+```
+
 If you are on Ubuntu (Debian), you can also run following commands for installation.
 
 ```bash
