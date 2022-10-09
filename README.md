@@ -13,9 +13,19 @@ If you are only interested in train models, clone 🐸TTS and install it locally
 
 ```bash
 git clone https://github.com/freds0/YourTTS/
+# For cuda 10.2
 conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch-lts
+# or for cuda 11.6
+conda install pytorch torchvision torchaudio cudatoolkit=11.6 -c pytorch -c conda-forge
+
 cd YourTTS
 pip install -e .
+```
+
+If you cann't install because of llvmlight:
+
+```bash
+$ pip install llvmlite==0.38.1 --ignore-installed
 ```
 
 If you are on Ubuntu (Debian), you can also run following commands for installation.
