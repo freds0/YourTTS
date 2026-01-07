@@ -34,8 +34,10 @@ def map_timestamps_to_new_sr(vad_sr, new_sr, timestamps, just_begging_end=False)
     return new_timestamps
 
 
-def get_vad_model_and_utils(use_cuda=False):
-    model, utils = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=True, onnx=False)
+def get_vad_model_and_utils(use_cuda=False, use_onnx=False):
+    model, utils = torch.hub.load(
+        repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=True, onnx=use_onnx, force_onnx_cpu=True
+    )
     if use_cuda:
         model = model.cuda()
 
@@ -46,12 +48,15 @@ def get_vad_model_and_utils(use_cuda=False):
 def remove_silence(
     model_and_utils, audio_path, out_path, vad_sample_rate=8000, trim_just_beginning_and_end=True, use_cuda=False
 ):
-
     # get the VAD model and utils functions
-    model, get_speech_timestamps, save_audio, collect_chunks = model_and_utils
+    model, get_speech_timestamps, _, collect_chunks = model_and_utils
 
     # read ground truth wav and resample the audio for the VAD
-    wav, gt_sample_rate = read_audio(audio_path)
+    try:
+        wav, gt_sample_rate = read_audio(audio_path)
+    except:
+        print(f"> ❗ Failed to read {audio_path}")
+        return None, False
 
     # if needed, resample the audio for the VAD model
     if gt_sample_rate != vad_sample_rate:
@@ -73,9 +78,11 @@ def remove_silence(
     # if have speech timestamps else save the wav
     if new_speech_timestamps:
         wav = collect_chunks(new_speech_timestamps, wav)
+        is_speech = True
     else:
         print(f"> The file {audio_path} probably does not have speech please check it !!")
+        is_speech = False
 
-    # save audio
-    save_audio(out_path, wav, sampling_rate=gt_sample_rate)
-    return out_path
+    # save
+    torchaudio.save(out_path, wav[None, :], gt_sample_rate)
+    return out_path, is_speech

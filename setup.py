@@ -23,7 +23,7 @@
 import os
 import subprocess
 import sys
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 import numpy
 import setuptools.command.build_py
@@ -31,8 +31,9 @@ import setuptools.command.develop
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
 
-if LooseVersion(sys.version) < LooseVersion("3.7") or LooseVersion(sys.version) >= LooseVersion("3.11"):
-    raise RuntimeError("TTS requires python >= 3.7 and < 3.11 " "but your Python version is {}".format(sys.version))
+python_version = sys.version.split()[0]
+if Version(python_version) < Version("3.9") or Version(python_version) >= Version("3.12"):
+    raise RuntimeError("TTS requires python >= 3.9 and < 3.12 " "but your Python version is {}".format(sys.version))
 
 
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -63,7 +64,9 @@ with open(os.path.join(cwd, "requirements.notebooks.txt"), "r") as f:
     requirements_notebooks = f.readlines()
 with open(os.path.join(cwd, "requirements.dev.txt"), "r") as f:
     requirements_dev = f.readlines()
-requirements_all = requirements_dev + requirements_notebooks
+with open(os.path.join(cwd, "requirements.ja.txt"), "r") as f:
+    requirements_ja = f.readlines()
+requirements_all = requirements_dev + requirements_notebooks + requirements_ja
 
 with open("README.md", "r", encoding="utf-8") as readme_file:
     README = readme_file.read()
@@ -90,7 +93,7 @@ setup(
     # ext_modules=find_cython_extensions(),
     # package
     include_package_data=True,
-    packages=find_packages(include=["TTS*"]),
+    packages=find_packages(include=["TTS"], exclude=["*.tests", "*tests.*", "tests.*", "*tests", "tests"]),
     package_data={
         "TTS": [
             "VERSION",
@@ -112,16 +115,16 @@ setup(
         "all": requirements_all,
         "dev": requirements_dev,
         "notebooks": requirements_notebooks,
+        "ja": requirements_ja,
     },
-    python_requires=">=3.7.0, <3.11",
+    python_requires=">=3.9.0, <3.12",
     entry_points={"console_scripts": ["tts=TTS.bin.synthesize:main", "tts-server = TTS.server.server:main"]},
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Developers",

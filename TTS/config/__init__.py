@@ -16,12 +16,9 @@ def read_json_with_comments(json_path):
     # fallback to json
     with fsspec.open(json_path, "r", encoding="utf-8") as f:
         input_str = f.read()
-    # handle comments
-    input_str = re.sub(r"\\\n", "", input_str)
-    input_str = re.sub(r"//.*\n", "\n", input_str)
-    data = json.loads(input_str)
-    return data
-
+    # handle comments but not urls with //
+    input_str = re.sub(r"(\"(?:[^\"\\]|\\.)*\")|(/\*(?:.|[\\n\\r])*?\*/)|(//.*)", lambda m: m.group(1) or m.group(2) or "", input_str)
+    return json.loads(input_str)
 
 def register_config(model_name: str) -> Coqpit:
     """Find the right config for the given model name.
@@ -37,7 +34,13 @@ def register_config(model_name: str) -> Coqpit:
     """
     config_class = None
     config_name = model_name + "_config"
-    paths = ["TTS.tts.configs", "TTS.vocoder.configs", "TTS.encoder.configs"]
+
+    # TODO: fix this
+    if model_name == "xtts":
+        from TTS.tts.configs.xtts_config import XttsConfig
+
+        config_class = XttsConfig
+    paths = ["TTS.tts.configs", "TTS.vocoder.configs", "TTS.encoder.configs", "TTS.vc.configs"]
     for path in paths:
         try:
             config_class = find_module(path, config_name)
@@ -62,7 +65,7 @@ def _process_model_name(config_dict: Dict) -> str:
     return model_name
 
 
-def load_config(config_path: str) -> None:
+def load_config(config_path: str) -> Coqpit:
     """Import `json` or `yaml` files as TTS configs. First, load the input file as a `dict` and check the model name
     to find the corresponding Config class. Then initialize the Config.
 

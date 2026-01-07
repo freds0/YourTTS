@@ -5,9 +5,11 @@ import json
 import os
 import sys
 from pathlib import Path
+from threading import Lock
 from typing import Union
+from urllib.parse import parse_qs
 
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, render_template_string, request, send_file
 
 from TTS.config import load_config
 from TTS.utils.manage import ModelManager
@@ -114,8 +116,13 @@ synthesizer = Synthesizer(
 use_multi_speaker = hasattr(synthesizer.tts_model, "num_speakers") and (
     synthesizer.tts_model.num_speakers > 1 or synthesizer.tts_speakers_file is not None
 )
-
 speaker_manager = getattr(synthesizer.tts_model, "speaker_manager", None)
+
+use_multi_language = hasattr(synthesizer.tts_model, "num_languages") and (
+    synthesizer.tts_model.num_languages > 1 or synthesizer.tts_languages_file is not None
+)
+language_manager = getattr(synthesizer.tts_model, "language_manager", None)
+
 # TODO: set this from SpeakerManager
 use_gst = synthesizer.tts_config.get("use_gst", False)
 app = Flask(__name__)
@@ -146,18 +153,28 @@ def index():
         "index.html",
         show_details=args.show_details,
         use_multi_speaker=use_multi_speaker,
-        speaker_ids=speaker_manager.ids if speaker_manager is not None else None,
+        use_multi_language=use_multi_language,
+        speaker_ids=speaker_manager.name_to_id if speaker_manager is not None else None,
+        language_ids=language_manager.name_to_id if language_manager is not None else None,
         use_gst=use_gst,
     )
 
 
 @app.route("/details")
 def details():
-    model_config = load_config(args.tts_config)
-    if args.vocoder_config is not None and os.path.isfile(args.vocoder_config):
-        vocoder_config = load_config(args.vocoder_config)
+    if args.config_path is not None and os.path.isfile(args.config_path):
+        model_config = load_config(args.config_path)
     else:
-        vocoder_config = None
+        if args.model_name is not None:
+            model_config = load_config(config_path)
+
+    if args.vocoder_config_path is not None and os.path.isfile(args.vocoder_config_path):
+        vocoder_config = load_config(args.vocoder_config_path)
+    else:
+        if args.vocoder_name is not None:
+            vocoder_config = load_config(vocoder_config_path)
+        else:
+            vocoder_config = None
 
     return render_template(
         "details.html",
@@ -168,17 +185,68 @@ def details():
     )
 
 
-@app.route("/api/tts", methods=["GET"])
+lock = Lock()
+
+
+@app.route("/api/tts", methods=["GET", "POST"])
 def tts():
-    text = request.args.get("text")
-    speaker_idx = request.args.get("speaker_id", "")
-    style_wav = request.args.get("style_wav", "")
-    style_wav = style_wav_uri_to_dict(style_wav)
-    print(" > Model input: {}".format(text))
-    print(" > Speaker Idx: {}".format(speaker_idx))
-    wavs = synthesizer.tts(text, speaker_name=speaker_idx, style_wav=style_wav)
-    out = io.BytesIO()
-    synthesizer.save_wav(wavs, out)
+    with lock:
+        text = request.headers.get("text") or request.values.get("text", "")
+        speaker_idx = request.headers.get("speaker-id") or request.values.get("speaker_id", "")
+        language_idx = request.headers.get("language-id") or request.values.get("language_id", "")
+        style_wav = request.headers.get("style-wav") or request.values.get("style_wav", "")
+        style_wav = style_wav_uri_to_dict(style_wav)
+
+        print(f" > Model input: {text}")
+        print(f" > Speaker Idx: {speaker_idx}")
+        print(f" > Language Idx: {language_idx}")
+        wavs = synthesizer.tts(text, speaker_name=speaker_idx, language_name=language_idx, style_wav=style_wav)
+        out = io.BytesIO()
+        synthesizer.save_wav(wavs, out)
+    return send_file(out, mimetype="audio/wav")
+
+
+# Basic MaryTTS compatibility layer
+
+
+@app.route("/locales", methods=["GET"])
+def mary_tts_api_locales():
+    """MaryTTS-compatible /locales endpoint"""
+    # NOTE: We currently assume there is only one model active at the same time
+    if args.model_name is not None:
+        model_details = args.model_name.split("/")
+    else:
+        model_details = ["", "en", "", "default"]
+    return render_template_string("{{ locale }}\n", locale=model_details[1])
+
+
+@app.route("/voices", methods=["GET"])
+def mary_tts_api_voices():
+    """MaryTTS-compatible /voices endpoint"""
+    # NOTE: We currently assume there is only one model active at the same time
+    if args.model_name is not None:
+        model_details = args.model_name.split("/")
+    else:
+        model_details = ["", "en", "", "default"]
+    return render_template_string(
+        "{{ name }} {{ locale }} {{ gender }}\n", name=model_details[3], locale=model_details[1], gender="u"
+    )
+
+
+@app.route("/process", methods=["GET", "POST"])
+def mary_tts_api_process():
+    """MaryTTS-compatible /process endpoint"""
+    with lock:
+        if request.method == "POST":
+            data = parse_qs(request.get_data(as_text=True))
+            # NOTE: we ignore param. LOCALE and VOICE for now since we have only one active model
+            text = data.get("INPUT_TEXT", [""])[0]
+        else:
+            text = request.args.get("INPUT_TEXT", "")
+        print(f" > Model input: {text}")
+        wavs = synthesizer.tts(text)
+        out = io.BytesIO()
+        synthesizer.save_wav(wavs, out)
     return send_file(out, mimetype="audio/wav")
 
 

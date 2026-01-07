@@ -3,11 +3,11 @@ import unittest
 
 import numpy as np
 import torch
+from trainer.io import save_checkpoint
 
 from tests import get_tests_input_path
 from TTS.config import load_config
 from TTS.encoder.utils.generic_utils import setup_encoder_model
-from TTS.encoder.utils.io import save_checkpoint
 from TTS.tts.utils.speakers import SpeakerManager
 from TTS.utils.audio import AudioProcessor
 
@@ -30,7 +30,7 @@ class SpeakerManagerTest(unittest.TestCase):
 
         # create a dummy speaker encoder
         model = setup_encoder_model(config)
-        save_checkpoint(model, None, None, get_tests_input_path(), 0)
+        save_checkpoint(config, model, None, None, 0, 0, get_tests_input_path())
 
         # load audio processor and speaker encoder
         ap = AudioProcessor(**config.audio)
@@ -59,7 +59,7 @@ class SpeakerManagerTest(unittest.TestCase):
         # remove dummy model
         os.remove(encoder_model_path)
 
-    def test_speakers_file_processing(self):
+    def test_dvector_file_processing(self):
         manager = SpeakerManager(d_vectors_file_path=d_vectors_file_path)
         self.assertEqual(manager.num_speakers, 1)
         self.assertEqual(manager.embedding_dim, 256)

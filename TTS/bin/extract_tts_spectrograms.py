@@ -15,6 +15,7 @@ from TTS.tts.models import setup_model
 from TTS.tts.utils.speakers import SpeakerManager
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio import AudioProcessor
+from TTS.utils.audio.numpy_transforms import quantize
 from TTS.utils.generic_utils import count_parameters
 
 use_cuda = torch.cuda.is_available()
@@ -37,7 +38,7 @@ def setup_loader(ap, r, verbose=False):
         precompute_num_workers=0,
         use_noise_augment=False,
         verbose=verbose,
-        speaker_id_mapping=speaker_manager.ids if c.use_speaker_embedding else None,
+        speaker_id_mapping=speaker_manager.name_to_id if c.use_speaker_embedding else None,
         d_vector_mapping=speaker_manager.embeddings if c.use_d_vector_file else None,
     )
 
@@ -159,12 +160,11 @@ def inference(
 
 
 def extract_spectrograms(
-    data_loader, model, ap, output_path, quantized_wav=False, save_audio=False, debug=False, metada_name="metada.txt"
+    data_loader, model, ap, output_path, quantize_bits=0, save_audio=False, debug=False, metada_name="metada.txt"
 ):
     model.eval()
     export_metadata = []
     for _, data in tqdm(enumerate(data_loader), total=len(data_loader)):
-
         # format data
         (
             text_input,
@@ -197,8 +197,8 @@ def extract_spectrograms(
             _, wavq_path, mel_path, wav_gl_path, wav_path = set_filename(wav_file_path, output_path)
 
             # quantize and save wav
-            if quantized_wav:
-                wavq = ap.quantize(wav)
+            if quantize_bits > 0:
+                wavq = quantize(wav, quantize_bits)
                 np.save(wavq_path, wavq)
 
             # save TTS mel
@@ -264,7 +264,7 @@ def main(args):  # pylint: disable=redefined-outer-name
         model,
         ap,
         args.output_path,
-        quantized_wav=args.quantized,
+        quantize_bits=args.quantize_bits,
         save_audio=args.save_audio,
         debug=args.debug,
         metada_name="metada.txt",
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, help="Path to save mel specs", required=True)
     parser.add_argument("--debug", default=False, action="store_true", help="Save audio files for debug")
     parser.add_argument("--save_audio", default=False, action="store_true", help="Save audio files")
-    parser.add_argument("--quantized", action="store_true", help="Save quantized audio files")
+    parser.add_argument("--quantize_bits", type=int, default=0, help="Save quantized audio files if non-zero")
     parser.add_argument("--eval", type=bool, help="compute eval.", default=True)
     args = parser.parse_args()
 

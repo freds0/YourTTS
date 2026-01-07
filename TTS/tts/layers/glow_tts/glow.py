@@ -1,6 +1,5 @@
-from distutils.version import LooseVersion
-
 import torch
+from packaging.version import Version
 from torch import nn
 from torch.nn import functional as F
 
@@ -91,7 +90,7 @@ class InvConvNear(nn.Module):
         self.no_jacobian = no_jacobian
         self.weight_inv = None
 
-        if LooseVersion(torch.__version__) < LooseVersion("1.9"):
+        if Version(torch.__version__) < Version("1.9"):
             w_init = torch.qr(torch.FloatTensor(self.num_splits, self.num_splits).normal_())[0]
         else:
             w_init = torch.linalg.qr(torch.FloatTensor(self.num_splits, self.num_splits).normal_(), "complete")[0]
@@ -187,7 +186,7 @@ class CouplingBlock(nn.Module):
         self.sigmoid_scale = sigmoid_scale
         # input layer
         start = torch.nn.Conv1d(in_channels // 2, hidden_channels, 1)
-        start = torch.nn.utils.weight_norm(start)
+        start = torch.nn.utils.parametrizations.weight_norm(start)
         self.start = start
         # output layer
         # Initializing last layer to 0 makes the affine coupling layers
@@ -197,7 +196,7 @@ class CouplingBlock(nn.Module):
         end.bias.data.zero_()
         self.end = end
         # coupling layers
-        self.wn = WN(in_channels, hidden_channels, kernel_size, dilation_rate, num_layers, c_in_channels, dropout_p)
+        self.wn = WN(hidden_channels, hidden_channels, kernel_size, dilation_rate, num_layers, c_in_channels, dropout_p)
 
     def forward(self, x, x_mask=None, reverse=False, g=None, **kwargs):  # pylint: disable=unused-argument
         """

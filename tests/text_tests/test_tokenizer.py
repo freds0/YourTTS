@@ -1,5 +1,5 @@
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from coqpit import Coqpit
 
@@ -25,6 +25,13 @@ class TestTTSTokenizer(unittest.TestCase):
     def test_text_to_ids_phonemes(self):
         # TODO: note sure how to extend to cover all the languages and phonemizer.
         text = "Bu bir Örnek."
+        text_ph = self.ph.phonemize(text, separator="")
+        ids = self.tokenizer_ph.text_to_ids(text)
+        test_hat = self.tokenizer_ph.ids_to_text(ids)
+        self.assertEqual(text_ph, test_hat)
+
+    def test_text_to_ids_phonemes_punctuation(self):
+        text = "..."
         text_ph = self.ph.phonemize(text, separator="")
         ids = self.tokenizer_ph.text_to_ids(text)
         test_hat = self.tokenizer_ph.ids_to_text(ids)
@@ -79,11 +86,11 @@ class TestTTSTokenizer(unittest.TestCase):
             enable_eos_bos_chars: bool = True
             use_phonemes: bool = True
             add_blank: bool = False
-            characters: str = Characters()
+            characters: str = field(default_factory=Characters)
             phonemizer: str = "espeak"
             phoneme_language: str = "tr"
             text_cleaner: str = "phoneme_cleaners"
-            characters = Characters()
+            characters = field(default_factory=Characters)
 
         tokenizer_ph, _ = TTSTokenizer.init_from_config(TokenizerConfig())
         tokenizer_ph.phonemizer.backend = "espeak"
