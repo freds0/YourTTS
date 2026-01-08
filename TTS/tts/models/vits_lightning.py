@@ -440,11 +440,13 @@ class YourTTSLightningModule(pl.LightningModule):
 
         Supports loading:
         1. New PyTorch Lightning checkpoints (state_dict key)
-        2. Old Trainer checkpoints (model key)
+        2. Old Trainer checkpoints (model key with optimizer, scaler, etc.)
+        3. Legacy checkpoints from old training framework
         """
-        # Check if this is an old checkpoint format
+        # Check if this is an old checkpoint format (has 'model' key but not 'state_dict')
         if "model" in state_dict and "state_dict" not in state_dict:
             # Old format - load VITS model weights directly
+            print("Loading from old checkpoint format (model key)")
             self.vits_model.load_state_dict(state_dict["model"], strict=strict)
         else:
             # New Lightning format
@@ -459,34 +461,161 @@ class YourTTSLightningModule(pl.LightningModule):
     ) -> "YourTTSLightningModule":
         """Load model from checkpoint with backward compatibility.
 
+        Supports loading from:
+        1. PyTorch Lightning checkpoints (new format)
+        2. Old Trainer checkpoints with 'model', 'optimizer', 'scaler', etc.
+        3. Legacy checkpoints from the old training framework
+
         Args:
             checkpoint_path: Path to checkpoint file
             map_location: Device to load checkpoint to
             **kwargs: Additional arguments to pass to __init__
+                - config: Model config (optional, will be extracted from checkpoint if not provided)
+                - ap: AudioProcessor instance
+                - tokenizer: TTSTokenizer instance
+                - speaker_manager: SpeakerManager instance
+                - language_manager: LanguageManager instance
 
         Returns:
             Loaded YourTTSLightningModule instance
+
+        Example:
+            >>> # Load from old checkpoint
+            >>> model = YourTTSLightningModule.load_from_checkpoint(
+            ...     "checkpoint_1020000.pth",
+            ...     config=config,  # Optional if checkpoint has config
+            ...     ap=ap,
+            ...     tokenizer=tokenizer,
+            ...     speaker_manager=speaker_manager,
+            ... )
         """
         # Load checkpoint (weights_only=False needed for custom config objects)
         checkpoint = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
 
+        # Detect checkpoint format
+        is_old_format = "model" in checkpoint and "state_dict" not in checkpoint
+        is_lightning_format = "state_dict" in checkpoint
+
+        print(f"Loading checkpoint from: {checkpoint_path}")
+        if is_old_format:
+            print("Detected old checkpoint format (contains 'model', 'optimizer', 'scaler', etc.)")
+            print(f"Checkpoint keys: {list(checkpoint.keys())}")
+        elif is_lightning_format:
+            print("Detected PyTorch Lightning checkpoint format")
+        else:
+            print(f"Warning: Unknown checkpoint format. Keys: {list(checkpoint.keys())}")
+
         # Extract config - prioritize kwargs if provided
         if "config" in kwargs:
             config = kwargs.pop("config")
+            print("Using config from kwargs")
         elif "hyper_parameters" in checkpoint:
             # Lightning checkpoint
             config = checkpoint["hyper_parameters"].get("config")
+            print("Extracted config from Lightning checkpoint hyper_parameters")
         elif "config" in checkpoint:
             # Old checkpoint
             config = checkpoint["config"]
+            print("Extracted config from checkpoint")
         else:
-            raise ValueError("Cannot find config in checkpoint")
+            raise ValueError(
+                "Cannot find config in checkpoint. "
+                "Please provide config via kwargs: load_from_checkpoint(..., config=your_config)"
+            )
 
         # Create model instance
+        print("Creating model instance...")
         model = cls(config=config, **kwargs)
 
-        # Load weights
-        model.load_state_dict(checkpoint, strict=False)
+        # Load weights based on checkpoint format
+        if is_old_format:
+            print("Loading model weights from 'model' key...")
+            # Old format: checkpoint["model"] contains the VITS model state_dict
+
+            # Load with strict=False to handle size mismatches gracefully
+            try:
+                missing_keys, unexpected_keys = model.vits_model.load_state_dict(
+                    checkpoint["model"], strict=False
+                )
+
+                if missing_keys:
+                    print(f"\nWarning: Missing keys in checkpoint ({len(missing_keys)} keys)")
+                    if len(missing_keys) <= 10:
+                        for key in missing_keys:
+                            print(f"  - {key}")
+                    else:
+                        for key in missing_keys[:5]:
+                            print(f"  - {key}")
+                        print(f"  ... and {len(missing_keys) - 5} more")
+                    print("These parameters will be randomly initialized.\n")
+
+                if unexpected_keys:
+                    print(f"\nWarning: Unexpected keys in checkpoint ({len(unexpected_keys)} keys)")
+                    if len(unexpected_keys) <= 10:
+                        for key in unexpected_keys:
+                            print(f"  - {key}")
+                    else:
+                        for key in unexpected_keys[:5]:
+                            print(f"  - {key}")
+                        print(f"  ... and {len(unexpected_keys) - 5} more")
+                    print("These parameters will be ignored.\n")
+
+                print("Successfully loaded model weights from old checkpoint")
+
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "size mismatch" in error_msg:
+                    print("\n⚠️  Size mismatch detected! Attempting to load with size adaptation...")
+                    print(f"Error details: {error_msg}\n")
+
+                    # Load weights manually, skipping mismatched sizes
+                    model_state = model.vits_model.state_dict()
+                    checkpoint_state = checkpoint["model"]
+
+                    loaded_keys = []
+                    skipped_keys = []
+
+                    for key, checkpoint_param in checkpoint_state.items():
+                        if key in model_state:
+                            model_param = model_state[key]
+                            if checkpoint_param.shape == model_param.shape:
+                                model_state[key] = checkpoint_param
+                                loaded_keys.append(key)
+                            else:
+                                skipped_keys.append((key, checkpoint_param.shape, model_param.shape))
+                        else:
+                            skipped_keys.append((key, checkpoint_param.shape, "not in model"))
+
+                    # Load the adapted state dict
+                    model.vits_model.load_state_dict(model_state)
+
+                    print(f"✓ Loaded {len(loaded_keys)} parameters successfully")
+                    print(f"⚠️  Skipped {len(skipped_keys)} parameters due to shape mismatch:\n")
+
+                    for key, ckpt_shape, model_shape in skipped_keys[:10]:
+                        print(f"  - {key}")
+                        print(f"    Checkpoint shape: {ckpt_shape}")
+                        print(f"    Model shape: {model_shape}")
+
+                    if len(skipped_keys) > 10:
+                        print(f"  ... and {len(skipped_keys) - 10} more")
+
+                    print("\nParameters with shape mismatch will be randomly initialized.")
+                    print("This is common when vocabulary size changes or model architecture is updated.\n")
+                else:
+                    # Re-raise if it's a different error
+                    raise
+
+            # Optionally print metadata if available
+            if "epoch" in checkpoint:
+                print(f"Checkpoint metadata - Epoch: {checkpoint['epoch']}, Step: {checkpoint.get('step', 'N/A')}")
+            if "model_loss" in checkpoint:
+                print(f"Checkpoint model loss: {checkpoint['model_loss']}")
+        else:
+            # Lightning format or unknown format
+            print("Loading weights using Lightning's load_state_dict...")
+            model.load_state_dict(checkpoint, strict=False)
+            print("Successfully loaded model weights")
 
         return model
 
