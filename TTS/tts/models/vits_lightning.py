@@ -15,6 +15,10 @@ The module maintains backward compatibility with existing YourTTS checkpoints.
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from itertools import chain
 from typing import Dict, List, Optional, Tuple, Any
 from torch.cuda.amp.autocast_mode import autocast
@@ -27,7 +31,7 @@ from TTS.tts.utils.languages import LanguageManager
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.tts.utils.helpers import segment
 from TTS.vocoder.utils.generic_utils import plot_results
-from TTS.tts.utils.visual import plot_alignment
+from TTS.tts.utils.visual import plot_alignment, plot_spectrogram
 
 
 class YourTTSLightningModule(pl.LightningModule):
@@ -358,7 +362,172 @@ class YourTTSLightningModule(pl.LightningModule):
         for key, value in loss_dict.items():
             self.log(f"val/{key}", value, prog_bar=(key == "loss"), logger=True, sync_dist=True)
 
-        return {"val_loss": loss_dict["loss"], "outputs": outputs}
+        # Store data for visualization (only for first few batches to save memory)
+        result = {"val_loss": loss_dict["loss"], "outputs": outputs}
+
+        # Store visualization data for first batch only
+        if batch_idx == 0:
+            result["mel_slice"] = mel_slice.detach().cpu()
+            result["mel_slice_hat"] = mel_slice_hat.detach().cpu()
+            result["mel_full"] = mel.detach().cpu()
+            result["waveform"] = waveform.detach().cpu()
+            result["waveform_hat"] = outputs["model_outputs"].detach().cpu()
+            result["alignments"] = outputs["alignments"].detach().cpu()
+            result["spec_lens"] = spec_lens.detach().cpu()
+            result["token_lens"] = token_lens.detach().cpu()
+
+        return result
+
+    def on_validation_batch_end(
+        self,
+        outputs: Dict[str, Any],
+        batch: Dict[str, torch.Tensor],
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        """Log visualizations at the end of first validation batch."""
+        # Only log visualizations for first batch to avoid memory issues
+        if batch_idx != 0:
+            return
+
+        # Only log on rank 0 for distributed training
+        if self.global_rank != 0:
+            return
+
+        # Get TensorBoard logger
+        tensorboard = None
+        for logger in self.loggers if hasattr(self, 'loggers') else [self.logger]:
+            if logger is not None and hasattr(logger, 'experiment'):
+                if hasattr(logger.experiment, 'add_figure'):
+                    tensorboard = logger.experiment
+                    break
+
+        if tensorboard is None:
+            return
+
+        current_step = self.global_step
+
+        # Log spectrograms, audio, and alignments
+        self._log_validation_visualizations(outputs, tensorboard, current_step)
+
+    def _log_validation_visualizations(
+        self,
+        outputs: Dict[str, Any],
+        tensorboard,
+        step: int,
+        num_samples: int = 3,
+    ) -> None:
+        """Log spectrograms, audio samples, and alignments to TensorBoard.
+
+        Args:
+            outputs: Validation step outputs containing mel specs, waveforms, alignments
+            tensorboard: TensorBoard SummaryWriter
+            step: Current global step
+            num_samples: Number of samples to log (default: 3)
+        """
+        # Check if visualization data is available
+        if "mel_slice" not in outputs:
+            return
+
+        mel_slice = outputs["mel_slice"]
+        mel_slice_hat = outputs["mel_slice_hat"]
+        mel_full = outputs["mel_full"]
+        waveform = outputs["waveform"]
+        waveform_hat = outputs["waveform_hat"]
+        alignments = outputs["alignments"]
+        spec_lens = outputs["spec_lens"]
+        token_lens = outputs["token_lens"]
+
+        batch_size = min(num_samples, mel_slice.shape[0])
+
+        for idx in range(batch_size):
+            # Get actual lengths
+            spec_len = spec_lens[idx].item() if spec_lens.dim() > 0 else spec_lens.item()
+            token_len = token_lens[idx].item() if token_lens.dim() > 0 else token_lens.item()
+
+            # ========================================
+            # 1. Log Mel Spectrogram Comparison
+            # ========================================
+            fig, axes = plt.subplots(2, 1, figsize=(12, 8))
+
+            # Ground truth mel segment
+            mel_gt = mel_slice[idx].numpy()
+            axes[0].imshow(mel_gt, aspect="auto", origin="lower", interpolation="none")
+            axes[0].set_title("Ground Truth Mel Spectrogram (Segment)")
+            axes[0].set_xlabel("Time Frames")
+            axes[0].set_ylabel("Mel Channels")
+
+            # Generated mel segment
+            mel_gen = mel_slice_hat[idx].numpy()
+            axes[1].imshow(mel_gen, aspect="auto", origin="lower", interpolation="none")
+            axes[1].set_title("Generated Mel Spectrogram (Segment)")
+            axes[1].set_xlabel("Time Frames")
+            axes[1].set_ylabel("Mel Channels")
+
+            plt.tight_layout()
+            tensorboard.add_figure(f"val/spectrogram_comparison_{idx}", fig, step)
+            plt.close(fig)
+
+            # ========================================
+            # 2. Log Full Mel Spectrogram
+            # ========================================
+            fig_full = plt.figure(figsize=(14, 4))
+            mel_full_sample = mel_full[idx, :, :spec_len].numpy()
+            plt.imshow(mel_full_sample, aspect="auto", origin="lower", interpolation="none")
+            plt.colorbar()
+            plt.title("Full Ground Truth Mel Spectrogram")
+            plt.xlabel("Time Frames")
+            plt.ylabel("Mel Channels")
+            plt.tight_layout()
+            tensorboard.add_figure(f"val/mel_spectrogram_full_{idx}", fig_full, step)
+            plt.close(fig_full)
+
+            # ========================================
+            # 3. Log Alignment
+            # ========================================
+            alignment = alignments[idx, :token_len, :spec_len].numpy()
+            fig_align = plot_alignment(alignment, output_fig=True)
+            fig_align.suptitle(f"Attention Alignment (Sample {idx})")
+            tensorboard.add_figure(f"val/alignment_{idx}", fig_align, step)
+            plt.close(fig_align)
+
+            # ========================================
+            # 4. Log Audio Samples
+            # ========================================
+            # Ground truth audio
+            audio_gt = waveform[idx].squeeze().numpy()
+            tensorboard.add_audio(
+                f"val/audio_gt_{idx}",
+                audio_gt,
+                step,
+                sample_rate=self.config.audio.sample_rate,
+            )
+
+            # Generated audio
+            audio_gen = waveform_hat[idx].squeeze().numpy()
+            # Normalize to prevent clipping
+            if np.abs(audio_gen).max() > 0:
+                audio_gen = audio_gen / np.abs(audio_gen).max() * 0.95
+            tensorboard.add_audio(
+                f"val/audio_generated_{idx}",
+                audio_gen,
+                step,
+                sample_rate=self.config.audio.sample_rate,
+            )
+
+            # ========================================
+            # 5. Log Mel Difference
+            # ========================================
+            fig_diff = plt.figure(figsize=(12, 4))
+            mel_diff = np.abs(mel_gt - mel_gen)
+            plt.imshow(mel_diff, aspect="auto", origin="lower", interpolation="none", cmap="hot")
+            plt.colorbar()
+            plt.title("Mel Spectrogram Absolute Difference")
+            plt.xlabel("Time Frames")
+            plt.ylabel("Mel Channels")
+            plt.tight_layout()
+            tensorboard.add_figure(f"val/mel_difference_{idx}", fig_diff, step)
+            plt.close(fig_diff)
 
     def configure_optimizers(self):
         """Configure optimizers and learning rate schedulers.
