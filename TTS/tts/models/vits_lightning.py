@@ -394,40 +394,59 @@ class YourTTSLightningModule(pl.LightningModule):
         if self.global_rank != 0:
             return
 
-        # Get TensorBoard logger
+        # Get loggers (TensorBoard and/or WandB)
         tensorboard = None
+        wandb_logger = None
+
         for logger in self.loggers if hasattr(self, 'loggers') else [self.logger]:
             if logger is not None and hasattr(logger, 'experiment'):
+                # Check for TensorBoard (has add_figure method)
                 if hasattr(logger.experiment, 'add_figure'):
                     tensorboard = logger.experiment
-                    break
+                # Check for WandB (WandbLogger class name or has specific wandb methods)
+                if type(logger).__name__ == 'WandbLogger' or (
+                    hasattr(logger.experiment, 'log') and
+                    hasattr(logger.experiment, 'config') and
+                    hasattr(logger.experiment, 'name')
+                ):
+                    wandb_logger = logger.experiment
 
-        if tensorboard is None:
+        if tensorboard is None and wandb_logger is None:
             return
 
         current_step = self.global_step
 
         # Log spectrograms, audio, and alignments
-        self._log_validation_visualizations(outputs, tensorboard, current_step)
+        self._log_validation_visualizations(outputs, tensorboard, wandb_logger, current_step)
 
     def _log_validation_visualizations(
         self,
         outputs: Dict[str, Any],
         tensorboard,
+        wandb_logger,
         step: int,
         num_samples: int = 3,
     ) -> None:
-        """Log spectrograms, audio samples, and alignments to TensorBoard.
+        """Log spectrograms, audio samples, and alignments to TensorBoard and/or WandB.
 
         Args:
             outputs: Validation step outputs containing mel specs, waveforms, alignments
-            tensorboard: TensorBoard SummaryWriter
+            tensorboard: TensorBoard SummaryWriter (can be None)
+            wandb_logger: WandB run object (can be None)
             step: Current global step
             num_samples: Number of samples to log (default: 3)
         """
         # Check if visualization data is available
         if "mel_slice" not in outputs:
             return
+
+        # Import wandb if needed
+        wandb = None
+        if wandb_logger is not None:
+            try:
+                import wandb
+            except ImportError:
+                wandb_logger = None
 
         mel_slice = outputs["mel_slice"]
         mel_slice_hat = outputs["mel_slice_hat"]
@@ -439,6 +458,9 @@ class YourTTSLightningModule(pl.LightningModule):
         token_lens = outputs["token_lens"]
 
         batch_size = min(num_samples, mel_slice.shape[0])
+
+        # Collect WandB logs to send in a single call
+        wandb_logs = {}
 
         for idx in range(batch_size):
             # Get actual lengths
@@ -465,7 +487,12 @@ class YourTTSLightningModule(pl.LightningModule):
             axes[1].set_ylabel("Mel Channels")
 
             plt.tight_layout()
-            tensorboard.add_figure(f"val/spectrogram_comparison_{idx}", fig, step)
+
+            if tensorboard is not None:
+                tensorboard.add_figure(f"val/spectrogram_comparison_{idx}", fig, step)
+            if wandb is not None:
+                wandb_logs[f"val/spectrogram_comparison_{idx}"] = wandb.Image(fig)
+
             plt.close(fig)
 
             # ========================================
@@ -479,7 +506,12 @@ class YourTTSLightningModule(pl.LightningModule):
             plt.xlabel("Time Frames")
             plt.ylabel("Mel Channels")
             plt.tight_layout()
-            tensorboard.add_figure(f"val/mel_spectrogram_full_{idx}", fig_full, step)
+
+            if tensorboard is not None:
+                tensorboard.add_figure(f"val/mel_spectrogram_full_{idx}", fig_full, step)
+            if wandb is not None:
+                wandb_logs[f"val/mel_spectrogram_full_{idx}"] = wandb.Image(fig_full)
+
             plt.close(fig_full)
 
             # ========================================
@@ -488,7 +520,12 @@ class YourTTSLightningModule(pl.LightningModule):
             alignment = alignments[idx, :token_len, :spec_len].numpy()
             fig_align = plot_alignment(alignment, output_fig=True)
             fig_align.suptitle(f"Attention Alignment (Sample {idx})")
-            tensorboard.add_figure(f"val/alignment_{idx}", fig_align, step)
+
+            if tensorboard is not None:
+                tensorboard.add_figure(f"val/alignment_{idx}", fig_align, step)
+            if wandb is not None:
+                wandb_logs[f"val/alignment_{idx}"] = wandb.Image(fig_align)
+
             plt.close(fig_align)
 
             # ========================================
@@ -496,24 +533,40 @@ class YourTTSLightningModule(pl.LightningModule):
             # ========================================
             # Ground truth audio
             audio_gt = waveform[idx].squeeze().numpy()
-            tensorboard.add_audio(
-                f"val/audio_gt_{idx}",
-                audio_gt,
-                step,
-                sample_rate=self.config.audio.sample_rate,
-            )
+
+            if tensorboard is not None:
+                tensorboard.add_audio(
+                    f"val/audio_gt_{idx}",
+                    audio_gt,
+                    step,
+                    sample_rate=self.config.audio.sample_rate,
+                )
+            if wandb is not None:
+                wandb_logs[f"val/audio_gt_{idx}"] = wandb.Audio(
+                    audio_gt,
+                    sample_rate=self.config.audio.sample_rate,
+                    caption=f"Ground Truth Audio {idx}"
+                )
 
             # Generated audio
             audio_gen = waveform_hat[idx].squeeze().numpy()
             # Normalize to prevent clipping
             if np.abs(audio_gen).max() > 0:
                 audio_gen = audio_gen / np.abs(audio_gen).max() * 0.95
-            tensorboard.add_audio(
-                f"val/audio_generated_{idx}",
-                audio_gen,
-                step,
-                sample_rate=self.config.audio.sample_rate,
-            )
+
+            if tensorboard is not None:
+                tensorboard.add_audio(
+                    f"val/audio_generated_{idx}",
+                    audio_gen,
+                    step,
+                    sample_rate=self.config.audio.sample_rate,
+                )
+            if wandb is not None:
+                wandb_logs[f"val/audio_generated_{idx}"] = wandb.Audio(
+                    audio_gen,
+                    sample_rate=self.config.audio.sample_rate,
+                    caption=f"Generated Audio {idx}"
+                )
 
             # ========================================
             # 5. Log Mel Difference
@@ -526,8 +579,17 @@ class YourTTSLightningModule(pl.LightningModule):
             plt.xlabel("Time Frames")
             plt.ylabel("Mel Channels")
             plt.tight_layout()
-            tensorboard.add_figure(f"val/mel_difference_{idx}", fig_diff, step)
+
+            if tensorboard is not None:
+                tensorboard.add_figure(f"val/mel_difference_{idx}", fig_diff, step)
+            if wandb is not None:
+                wandb_logs[f"val/mel_difference_{idx}"] = wandb.Image(fig_diff)
+
             plt.close(fig_diff)
+
+        # Log all WandB items at once
+        if wandb is not None and wandb_logs:
+            wandb_logger.log(wandb_logs, step=step)
 
     def configure_optimizers(self):
         """Configure optimizers and learning rate schedulers.
