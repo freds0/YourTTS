@@ -2,12 +2,6 @@ from typing import Dict, List, Union
 
 from TTS.utils.generic_utils import find_module
 
-# Import PyTorch Lightning models
-try:
-    from TTS.tts.models.vits_lightning import YourTTSLightningModule
-except ImportError:
-    YourTTSLightningModule = None
-
 
 def setup_model(config: "Coqpit", samples: Union[List[List], List[Dict]] = None) -> "BaseTTS":
     print(" > Using model: {}".format(config.model))

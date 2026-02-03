@@ -1,5 +1,0 @@
-================================================================================
-YourTTS Lightning - Setup e Teste com LJSpeech
-================================================================================
-[0;32m✓ LJSpeech encontrado em: /home/fred/Projetos/DATASETS/LJSpeech-1.1[0m
-[0;31m✗ Conda não encontrado. Instale o Miniconda ou Anaconda primeiro.[0m

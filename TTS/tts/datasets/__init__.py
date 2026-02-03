@@ -9,13 +9,6 @@ import numpy as np
 from TTS.tts.datasets.dataset import *
 from TTS.tts.datasets.formatters import *
 
-# Import PyTorch Lightning DataModule
-try:
-    from TTS.tts.datasets.yourtts_datamodule import YourTTSDataModule, prepare_yourtts_data
-except ImportError:
-    YourTTSDataModule = None
-    prepare_yourtts_data = None
-
 
 def split_dataset(items, eval_split_max_size=None, eval_split_size=0.01):
     """Split a dataset into train and eval. Consider speaker distribution in multi-speaker training.

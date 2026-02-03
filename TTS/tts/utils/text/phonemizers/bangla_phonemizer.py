@@ -1,7 +1,22 @@
 from typing import Dict
 
-from TTS.tts.utils.text.bangla.phonemizer import bangla_text_to_phonemes
 from TTS.tts.utils.text.phonemizers.base import BasePhonemizer
+
+# Lazy import to avoid Python 3.9 compatibility issues with bangla library
+_bangla_text_to_phonemes = None
+
+def _get_bangla_phonemizer():
+    global _bangla_text_to_phonemes
+    if _bangla_text_to_phonemes is None:
+        try:
+            from TTS.tts.utils.text.bangla.phonemizer import bangla_text_to_phonemes
+            _bangla_text_to_phonemes = bangla_text_to_phonemes
+        except (ImportError, TypeError) as e:
+            raise ImportError(
+                "Bangla phonemizer requires the 'bangla' library, but it's not compatible with Python 3.9. "
+                "Please use Python 3.10+ or install a compatible version of the 'bangla' library."
+            ) from e
+    return _bangla_text_to_phonemes
 
 _DEF_ZH_PUNCS = "、.,[]()?!〽~『』「」【】"
 
@@ -34,6 +49,7 @@ class BN_Phonemizer(BasePhonemizer):
 
     @staticmethod
     def phonemize_bn(text: str, separator: str = "|") -> str:  # pylint: disable=unused-argument
+        bangla_text_to_phonemes = _get_bangla_phonemizer()
         ph = bangla_text_to_phonemes(text)
         return ph
 

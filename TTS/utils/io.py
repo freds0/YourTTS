@@ -57,48 +57,12 @@ def load_fsspec(
 def load_checkpoint(
     model, checkpoint_path, use_cuda=False, eval=False, cache=False
 ):  # pylint: disable=redefined-builtin
-    """Load model checkpoint with backward compatibility.
-
-    Supports loading from:
-    1. Old checkpoints with 'model' key (original format)
-    2. PyTorch Lightning checkpoints with 'state_dict' key
-
-    Args:
-        model: Model instance to load weights into
-        checkpoint_path: Path to checkpoint file
-        use_cuda: Whether to move model to CUDA
-        eval: Whether to set model to eval mode
-        cache: Whether to cache the checkpoint file
-
-    Returns:
-        Tuple of (model, checkpoint_dict)
-    """
     try:
         state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"), cache=cache)
     except ModuleNotFoundError:
         pickle_tts.Unpickler = RenamingUnpickler
         state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"), pickle_module=pickle_tts, cache=cache)
-
-    # Handle different checkpoint formats
-    if "model" in state:
-        # Old format with 'model' key
-        model.load_state_dict(state["model"])
-    elif "state_dict" in state:
-        # PyTorch Lightning format
-        # Filter out Lightning-specific keys (e.g., 'vits_model.xxx' -> 'xxx')
-        model_state_dict = {}
-        for key, value in state["state_dict"].items():
-            if key.startswith("vits_model."):
-                # Remove 'vits_model.' prefix for compatibility
-                new_key = key[len("vits_model."):]
-                model_state_dict[new_key] = value
-            else:
-                model_state_dict[key] = value
-        model.load_state_dict(model_state_dict, strict=False)
-    else:
-        # Try loading directly (maybe it's just a state_dict)
-        model.load_state_dict(state)
-
+    model.load_state_dict(state["model"])
     if use_cuda:
         model.cuda()
     if eval:

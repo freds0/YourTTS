@@ -1,20 +1,21 @@
 [build-system]
 requires = [
-    "setuptools",
+    "setuptools>=45.0",
     "wheel",
-    "cython~=0.29.30",
+    "cython>=0.29.30",
     "numpy>=1.22.0",
-    "packaging",
+    "packaging>=23.1",
 ]
-
-[flake8]
-max-line-length=120
+build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 120
-target-version = ['py39']
+target-version = ['py39', 'py310', 'py311']
 
 [tool.isort]
 line_length = 120
 profile = "black"
 multi_line_output = 3
+
+[tool.flake8]
+max-line-length = 120
