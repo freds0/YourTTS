@@ -112,6 +112,14 @@ class VitsLightningModule(pl.LightningModule):
         # Return [disc, gen] to match optimizer_idx order
         return [optimizer_disc, optimizer_gen], [scheduler_disc, scheduler_gen]
 
+    def _move_batch_to_device(self, batch):
+        """Move all tensors in batch dict to the model's device."""
+        device = self.device
+        for key, value in batch.items():
+            if isinstance(value, torch.Tensor):
+                batch[key] = value.to(device)
+        return batch
+
     def training_step(self, batch, batch_idx):
         """
         Training step with dual optimizer strategy.
@@ -120,7 +128,11 @@ class VitsLightningModule(pl.LightningModule):
         optimizer_disc, optimizer_gen = self.optimizers()
 
         # Format batch (compute speaker IDs, d-vectors, language IDs)
+        # This creates new tensors in CPU
         batch = self.model.format_batch(batch)
+
+        # Move batch to device (including newly created tensors)
+        batch = self._move_batch_to_device(batch)
 
         # Format batch on device (compute spectrograms)
         batch = self.model.format_batch_on_device(batch)
@@ -198,7 +210,11 @@ class VitsLightningModule(pl.LightningModule):
         Validation step using the model's eval_step method.
         """
         # Format batch (compute speaker IDs, d-vectors, language IDs)
+        # This creates new tensors in CPU
         batch = self.model.format_batch(batch)
+
+        # Move batch to device (including newly created tensors)
+        batch = self._move_batch_to_device(batch)
 
         # Format batch on device (compute spectrograms)
         batch = self.model.format_batch_on_device(batch)
@@ -354,19 +370,56 @@ def train(config_path: str, output_dir: str = './outputs_lightning', restore_pat
         # Load state dict from checkpoint
         checkpoint = torch.load(restore_path, map_location='cpu')
 
-        # Handle different checkpoint formats
+        # Determine checkpoint format
         if 'model' in checkpoint:
-            # Original TTS checkpoint format
-            model.model.load_state_dict(checkpoint['model'])
-            print("✓ Loaded model weights from 'model' key")
+            checkpoint_state_dict = checkpoint['model']
+            checkpoint_format = 'model'
         elif 'state_dict' in checkpoint:
-            # PyTorch Lightning checkpoint format
-            model.load_state_dict(checkpoint['state_dict'])
-            print("✓ Loaded model weights from 'state_dict' key")
+            checkpoint_state_dict = checkpoint['state_dict']
+            checkpoint_format = 'state_dict'
         else:
-            # Direct state dict
-            model.model.load_state_dict(checkpoint)
-            print("✓ Loaded model weights directly")
+            checkpoint_state_dict = checkpoint
+            checkpoint_format = 'direct'
+
+        # Get model's current state dict
+        model_state_dict = model.model.state_dict() if checkpoint_format != 'state_dict' else model.state_dict()
+
+        # Filter checkpoint to only include compatible weights
+        filtered_state_dict = {}
+        incompatible_keys = []
+        missing_keys = []
+        unexpected_keys = []
+
+        for key, checkpoint_param in checkpoint_state_dict.items():
+            if key not in model_state_dict:
+                unexpected_keys.append(key)
+            elif checkpoint_param.shape != model_state_dict[key].shape:
+                incompatible_keys.append(f"{key}: checkpoint{checkpoint_param.shape} vs model{model_state_dict[key].shape}")
+            else:
+                filtered_state_dict[key] = checkpoint_param
+
+        # Check for missing keys
+        for key in model_state_dict.keys():
+            if key not in checkpoint_state_dict:
+                missing_keys.append(key)
+
+        # Load filtered state dict
+        if checkpoint_format == 'state_dict':
+            model.load_state_dict(filtered_state_dict, strict=False)
+        else:
+            model.model.load_state_dict(filtered_state_dict, strict=False)
+
+        print(f"✓ Loaded model weights from '{checkpoint_format}' key (partial loading)")
+        print(f"  ✓ Successfully loaded: {len(filtered_state_dict)} keys")
+        if incompatible_keys:
+            print(f"  ⚠ Skipped incompatible keys: {len(incompatible_keys)} keys")
+            print(f"    First few: {incompatible_keys[:3]}")
+        if unexpected_keys:
+            print(f"  ⚠ Unexpected keys in checkpoint: {len(unexpected_keys)} keys")
+            print(f"    First few: {unexpected_keys[:3]}")
+        if missing_keys:
+            print(f"  ⚠ Missing keys (will be randomly initialized): {len(missing_keys)} keys")
+            print(f"    First few: {missing_keys[:3]}")
 
         print(f"✓ Successfully restored model from checkpoint")
         print(f"{'='*80}\n")

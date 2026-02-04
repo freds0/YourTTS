@@ -27,14 +27,14 @@
     "num_mels": 80
   },
 
-  "batch_size": 2,
+  "batch_size": 16,
   "batch_group_size": 48,
-  "eval_batch_size": 2,
+  "eval_batch_size": 16,
   "num_loader_workers": 8,
   "eval_split_max_size": 256,
   "eval_split_size": 0.01,
 
-  "epochs": 1000,
+  "epochs": 1,
   "lr": 0.0001,
   "lr_gen": 0.0002,
   "lr_disc": 0.0002,
@@ -107,13 +107,13 @@
   "test_sentences": [
     [
       "Ouviram do ipiranga às margens plácidas de um povo heróico o brado retumbante.",
-      "LJ001-0001",
+      "ljspeech",
       null,
       "pt"
     ],
     [
       "Minha terra tem palmeiras onde canta o sabiá, as aves que aqui gorjeiam não gorjeiam como lá.",
-      "LJ001-0002",
+      "ljspeech",
       null,
       "pt"
     ]

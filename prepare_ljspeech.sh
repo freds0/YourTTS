@@ -43,8 +43,8 @@ else
     echo
 
     # Ativar conda environment
-    source /opt/anaconda3/etc/profile.d/conda.sh
-    conda activate yourtts
+    #source /opt/anaconda3/etc/profile.d/conda.sh
+    #conda activate yourtts
 
     # Computar embeddings
     python TTS/bin/compute_embeddings.py \
