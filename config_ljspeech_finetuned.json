@@ -138,5 +138,10 @@
 
   "dashboard_logger": "tensorboard",
   "logger_uri": null,
-  "target_loss": "loss_1"
+  "target_loss": "loss_1",
+
+  "use_wandb": false,
+  "wandb_project": "yourtts-ljspeech-finetuned",
+  "wandb_entity": null,
+  "wandb_tags": ["yourtts", "ljspeech", "tts", "portuguese", "finetuning"]
 }

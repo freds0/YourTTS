@@ -1,7 +1,7 @@
 {
-  "run_name": "YourTTS-LJSpeech-Lightning",
+  "run_name": "YourTTS-LJSpeech-Lightning-WandB",
   "project_name": "YourTTS",
-  "run_description": "YourTTS trained on LJSpeech dataset using PyTorch Lightning",
+  "run_description": "YourTTS trained on LJSpeech dataset using PyTorch Lightning with Weights & Biases logging",
 
   "model": "vits",
   "model_args": {
@@ -116,30 +116,6 @@
       "LJ001-0002",
       null,
       "pt"
-    ],
-    [
-      "Ó que saudades que tenho da aurora da minha vida, da minha infância querida, Que os anos não trazem mais.",
-      "LJ001-0003",
-      null,
-      "pt"
-    ],
-    [
-      "E agora José? A festa acabou, a luz apagou, o povo sumiu, a noite esfriou, e agora José?",
-      "LJ001-0004",
-      null,
-      "pt"
-    ],
-    [
-      "Amor é fogo que arde sem se ver é ferida que dói e não se sente é um contentamento descontente é dor que desatina sem doer.",
-      "LJ001-0005",
-      null,
-      "pt"
-    ],
-    [
-      "Vou-me embora pra Pasárgada, Lá sou amigo do rei, Lá tenho a mulher que eu quero, Na cama que escolherei!",
-      "LJ001-0006",
-      null,
-      "pt"
     ]
   ],
 
@@ -158,12 +134,12 @@
   "save_checkpoints": true,
   "save_all_best": false,
 
-  "dashboard_logger": "tensorboard",
+  "dashboard_logger": "wandb",
   "logger_uri": null,
   "target_loss": "loss_1",
 
-  "use_wandb": false,
+  "use_wandb": true,
   "wandb_project": "yourtts-ljspeech",
   "wandb_entity": null,
-  "wandb_tags": ["yourtts", "ljspeech", "tts", "portuguese"]
+  "wandb_tags": ["yourtts", "ljspeech", "tts", "portuguese", "lightning"]
 }

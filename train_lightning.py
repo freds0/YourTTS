@@ -11,7 +11,7 @@ from pathlib import Path
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from torch.utils.data import DataLoader
 
 # Add TTS to path
@@ -383,12 +383,54 @@ def train(config_path: str, output_dir: str = './outputs_lightning', restore_pat
 
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
-    # Logger
-    logger = TensorBoardLogger(
-        save_dir=output_dir,
-        name='lightning_logs',
-        version=config.run_name if hasattr(config, 'run_name') else None,
-    )
+    # Logger - Support both TensorBoard and W&B
+    use_wandb = getattr(config, 'use_wandb', False)
+
+    if use_wandb:
+        # Weights & Biases Logger
+        wandb_project = getattr(config, 'wandb_project', 'yourtts-training')
+        wandb_entity = getattr(config, 'wandb_entity', None)
+        wandb_name = getattr(config, 'run_name', None)
+        wandb_tags = getattr(config, 'wandb_tags', ['yourtts', 'tts', 'lightning'])
+
+        logger = WandbLogger(
+            project=wandb_project,
+            entity=wandb_entity,
+            name=wandb_name,
+            tags=wandb_tags,
+            save_dir=output_dir,
+            log_model=True,  # Log model checkpoints to W&B
+        )
+
+        # Log config to W&B
+        logger.experiment.config.update({
+            'batch_size': config.batch_size,
+            'lr_gen': config.lr_gen,
+            'lr_disc': config.lr_disc,
+            'sample_rate': config.audio.sample_rate,
+            'num_mels': config.audio.num_mels,
+            'fft_size': config.audio.fft_size,
+            'hop_length': config.audio.hop_length,
+            'model': 'YourTTS-VITS',
+            'architecture': 'VITS with d-vectors',
+        })
+
+        print(f"\n{'='*80}")
+        print(f"✓ Weights & Biases logging enabled")
+        print(f"  Project: {wandb_project}")
+        print(f"  Entity: {wandb_entity if wandb_entity else 'default'}")
+        print(f"  Run name: {wandb_name if wandb_name else 'auto-generated'}")
+        print(f"  Tags: {wandb_tags}")
+        print(f"{'='*80}\n")
+    else:
+        # TensorBoard Logger (default)
+        logger = TensorBoardLogger(
+            save_dir=output_dir,
+            name='lightning_logs',
+            version=config.run_name if hasattr(config, 'run_name') else None,
+        )
+        print(f"\n✓ TensorBoard logging enabled")
+        print(f"  Log dir: {output_dir}/lightning_logs\n")
 
     # Trainer
     trainer = pl.Trainer(
