@@ -1,0 +1,276 @@
+config: !!python/object:TTS.tts.configs.vits_config.VitsConfig
+  add_blank: true
+  allow_tf32: false
+  audio: !!python/object:TTS.tts.models.vits.VitsAudioConfig
+    _initialized: true
+    fft_size: 1024
+    hop_length: 256
+    mel_fmax: null
+    mel_fmin: 0
+    num_mels: 80
+    sample_rate: 22050
+    win_length: 1024
+  batch_group_size: 48
+  batch_size: 2
+  characters: !!python/object:TTS.tts.configs.shared_configs.CharactersConfig
+    _initialized: true
+    blank: null
+    bos: '*'
+    characters: "ABCDEFGHIJKLMN\xD1OPQRSTUVWXYZ\xC7\xC3\xC0\xC1\xC2\xCA\xC9\xCD\xD2\
+      \xD3\xD4\xD5\xD6\xDA\xDB\xDCabcdefghijklmn\xF1opqrstuvwxyz\xE7\xE3\xE0\xE1\xE2\
+      \xEA\xE9\xED\xF2\xF3\xF4\xF5\xF4\xFA\xFB\xFC"
+    characters_class: TTS.tts.models.vits.VitsCharacters
+    eos: '&'
+    is_sorted: true
+    is_unique: true
+    pad: _
+    phonemes: "iy\u0268\u0289\u026Fu\u026A\u028F\u028Ae\xF8\u0258\u0259\u0275\u0264\
+      o\u025B\u0153\u025C\u025E\u028C\u0254\xE6\u0250a\u0276\u0251\u0252\u1D7B\u0298\
+      \u0253\u01C0\u0257\u01C3\u0284\u01C2\u0260\u01C1\u029Bpbtd\u0288\u0256c\u025F\
+      k\u0261q\u0262\u0294\u0274\u014B\u0272\u0273n\u0271m\u0299r\u0280\u2C71\u027E\
+      \u027D\u0278\u03B2fv\u03B8\xF0sz\u0283\u0292\u0282\u0290\xE7\u029Dx\u0263\u03C7\
+      \u0281\u0127\u0295h\u0266\u026C\u026E\u028B\u0279\u027Bj\u0270l\u026D\u028E\u029F\
+      \u02C8\u02CC\u02D0\u02D1\u028Dw\u0265\u029C\u02A2\u02A1\u0255\u0291\u027A\u0267\
+      \u025A\u02DE\u026B'\u0303' "
+    punctuations: '!''(),-.:;? '
+    vocab_dict: null
+  compute_energy: false
+  compute_f0: false
+  compute_input_seq_cache: false
+  compute_linear_spec: true
+  cudnn_benchmark: false
+  cudnn_deterministic: false
+  cudnn_enable: true
+  d_vector_dim: 0
+  d_vector_file: null
+  dashboard_logger: tensorboard
+  datasets:
+  - !!python/object:TTS.config.shared_configs.BaseDatasetConfig
+    _initialized: true
+    dataset_name: ljspeech
+    formatter: ljspeech
+    ignored_speakers: null
+    language: pt
+    meta_file_attn_mask: ''
+    meta_file_train: metadata.csv
+    meta_file_val: null
+    path: /home/fred/Projetos/DATASETS/LJSpeech-1.1/
+    phonemizer: ''
+  disc_loss_alpha: 1.0
+  distributed_backend: nccl
+  distributed_url: tcp://localhost:54321
+  drop_last: false
+  dur_loss_alpha: 1.0
+  enable_eos_bos_chars: false
+  epochs: 1000
+  eval_batch_size: 2
+  eval_split_max_size: 256
+  eval_split_size: 0.01
+  feat_loss_alpha: 1.0
+  gen_loss_alpha: 1.0
+  grad_clip:
+  - 1000.0
+  - 1000.0
+  kl_loss_alpha: 1.0
+  language_ids_file: null
+  language_weighted_sampler_alpha: 1.0
+  length_weighted_sampler_alpha: 1.0
+  log_model_step: 1000
+  logger_uri: null
+  loss_masking: null
+  lr: 0.0001
+  lr_disc: 0.0002
+  lr_gen: 0.0002
+  lr_scheduler: null
+  lr_scheduler_disc: ExponentialLR
+  lr_scheduler_disc_params:
+    gamma: 0.999875
+    last_epoch: -1
+  lr_scheduler_gen: ExponentialLR
+  lr_scheduler_gen_params:
+    gamma: 0.999875
+    last_epoch: -1
+  lr_scheduler_params: {}
+  max_audio_len: 441000
+  max_text_len: 500
+  mel_loss_alpha: 45.0
+  min_audio_len: 66150
+  min_text_len: 5
+  mixed_precision: false
+  model: vits
+  model_args: !!python/object:TTS.tts.models.vits.VitsArgs
+    _initialized: true
+    condition_dp_on_speaker: true
+    d_vector_dim: 512
+    d_vector_file:
+    - /home/fred/Projetos/DATASETS/LJSpeech-1.1/speakers.pth
+    detach_dp_input: true
+    dilation_rate_flow: 1
+    dilation_rate_posterior_encoder: 1
+    dropout_p_duration_predictor: 0.5
+    dropout_p_text_encoder: 0.1
+    embedded_language_dim: 4
+    encoder_sample_rate: null
+    freeze_DP: false
+    freeze_PE: false
+    freeze_encoder: false
+    freeze_flow_decoder: false
+    freeze_waveform_decoder: false
+    hidden_channels: 192
+    hidden_channels_ffn_text_encoder: 768
+    inference_noise_scale: 0.667
+    inference_noise_scale_dp: 1.0
+    init_discriminator: true
+    interpolate_z: true
+    kernel_size_flow: 5
+    kernel_size_posterior_encoder: 5
+    kernel_size_text_encoder: 3
+    language_ids_file: null
+    length_scale: 1
+    max_inference_len: null
+    noise_scale: 1.0
+    noise_scale_dp: 1.0
+    num_chars: 218
+    num_heads_text_encoder: 2
+    num_languages: 0
+    num_layers_flow: 4
+    num_layers_posterior_encoder: 16
+    num_layers_text_encoder: 10
+    num_speakers: 0
+    out_channels: 513
+    periods_multi_period_discriminator:
+    - 2
+    - 3
+    - 5
+    - 7
+    - 11
+    reinit_DP: false
+    reinit_text_encoder: false
+    resblock_dilation_sizes_decoder:
+    - - 1
+      - 3
+      - 5
+    - - 1
+      - 3
+      - 5
+    - - 1
+      - 3
+      - 5
+    resblock_kernel_sizes_decoder:
+    - 3
+    - 7
+    - 11
+    resblock_type_decoder: '2'
+    speaker_embedding_channels: 256
+    speaker_encoder_config_path: https://github.com/coqui-ai/TTS/releases/download/speaker_encoder_model/config_se.json
+    speaker_encoder_model_path: https://github.com/coqui-ai/TTS/releases/download/speaker_encoder_model/model_se.pth.tar
+    speakers_file: null
+    spec_segment_size: 32
+    upsample_initial_channel_decoder: 512
+    upsample_kernel_sizes_decoder:
+    - 16
+    - 16
+    - 4
+    - 4
+    upsample_rates_decoder:
+    - 8
+    - 8
+    - 2
+    - 2
+    use_d_vector_file: true
+    use_language_embedding: false
+    use_sdp: true
+    use_speaker_embedding: false
+    use_speaker_encoder_as_loss: false
+    use_spectral_norm_disriminator: false
+  model_param_stats: false
+  num_chars: 218
+  num_eval_loader_workers: 0
+  num_loader_workers: 8
+  num_speakers: 0
+  optimizer: AdamW
+  optimizer_params:
+    betas:
+    - 0.8
+    - 0.99
+    eps: 1.0e-09
+    weight_decay: 0.01
+  output_path: output
+  phoneme_cache_path: null
+  phoneme_language: null
+  phonemizer: null
+  plot_step: 100
+  precision: fp16
+  precompute_num_workers: 12
+  print_eval: true
+  print_step: 25
+  project_name: YourTTS
+  r: 1
+  return_wav: true
+  run_description: YourTTS trained on LJSpeech dataset using PyTorch Lightning
+  run_eval: true
+  run_eval_steps: null
+  run_name: YourTTS-LJSpeech-Lightning
+  save_all_best: false
+  save_best_after: 0
+  save_checkpoints: true
+  save_n_checkpoints: 2
+  save_on_interrupt: true
+  save_step: 10000
+  scheduler_after_epoch: true
+  shuffle: false
+  speaker_embedding_channels: 256
+  speaker_encoder_loss_alpha: 9.0
+  speaker_weighted_sampler_alpha: 1.0
+  speakers_file: null
+  start_by_longest: true
+  target_loss: loss_1
+  test_delay_epochs: 0
+  test_sentences:
+  - - "Ouviram do ipiranga \xE0s margens pl\xE1cidas de um povo her\xF3ico o brado\
+      \ retumbante."
+    - LJ001-0001
+    - null
+    - pt
+  - - "Minha terra tem palmeiras onde canta o sabi\xE1, as aves que aqui gorjeiam\
+      \ n\xE3o gorjeiam como l\xE1."
+    - LJ001-0002
+    - null
+    - pt
+  - - "\xD3 que saudades que tenho da aurora da minha vida, da minha inf\xE2ncia querida,\
+      \ Que os anos n\xE3o trazem mais."
+    - LJ001-0003
+    - null
+    - pt
+  - - "E agora Jos\xE9? A festa acabou, a luz apagou, o povo sumiu, a noite esfriou,\
+      \ e agora Jos\xE9?"
+    - LJ001-0004
+    - null
+    - pt
+  - - "Amor \xE9 fogo que arde sem se ver \xE9 ferida que d\xF3i e n\xE3o se sente\
+      \ \xE9 um contentamento descontente \xE9 dor que desatina sem doer."
+    - LJ001-0005
+    - null
+    - pt
+  - - "Vou-me embora pra Pas\xE1rgada, L\xE1 sou amigo do rei, L\xE1 tenho a mulher\
+      \ que eu quero, Na cama que escolherei!"
+    - LJ001-0006
+    - null
+    - pt
+  test_sentences_file: ''
+  text_cleaner: portuguese_cleaners
+  training_seed: 54321
+  use_d_vector_file: false
+  use_grad_scaler: false
+  use_language_embedding: false
+  use_language_weighted_sampler: false
+  use_length_weighted_sampler: false
+  use_noise_augment: false
+  use_phonemes: false
+  use_speaker_embedding: false
+  use_speaker_weighted_sampler: false
+  use_weighted_sampler: true
+  wandb_entity: null
+  weighted_sampler_attrs:
+    speaker_name: 1.0
+  weighted_sampler_multipliers: {}

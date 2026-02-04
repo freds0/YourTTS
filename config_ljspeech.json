@@ -1,0 +1,164 @@
+{
+  "run_name": "YourTTS-LJSpeech-Lightning",
+  "project_name": "YourTTS",
+  "run_description": "YourTTS trained on LJSpeech dataset using PyTorch Lightning",
+
+  "model": "vits",
+  "model_args": {
+    "d_vector_file": ["/home/fred/Projetos/DATASETS/LJSpeech-1.1/speakers.pth"],
+    "use_d_vector_file": true,
+    "d_vector_dim": 512,
+    "num_layers_text_encoder": 10,
+    "speaker_encoder_model_path": "https://github.com/coqui-ai/TTS/releases/download/speaker_encoder_model/model_se.pth.tar",
+    "speaker_encoder_config_path": "https://github.com/coqui-ai/TTS/releases/download/speaker_encoder_model/config_se.json",
+    "resblock_type_decoder": "2",
+    "use_speaker_encoder_as_loss": false,
+    "use_language_embedding": false,
+    "use_speaker_embedding": false
+  },
+
+  "audio": {
+    "sample_rate": 22050,
+    "hop_length": 256,
+    "win_length": 1024,
+    "fft_size": 1024,
+    "mel_fmin": 0.0,
+    "mel_fmax": null,
+    "num_mels": 80
+  },
+
+  "batch_size": 2,
+  "batch_group_size": 48,
+  "eval_batch_size": 2,
+  "num_loader_workers": 8,
+  "eval_split_max_size": 256,
+  "eval_split_size": 0.01,
+
+  "epochs": 1000,
+  "lr": 0.0001,
+  "lr_gen": 0.0002,
+  "lr_disc": 0.0002,
+  "lr_scheduler_gen": "ExponentialLR",
+  "lr_scheduler_gen_params": {
+    "gamma": 0.999875,
+    "last_epoch": -1
+  },
+  "lr_scheduler_disc": "ExponentialLR",
+  "lr_scheduler_disc_params": {
+    "gamma": 0.999875,
+    "last_epoch": -1
+  },
+
+  "optimizer": "AdamW",
+  "optimizer_params": {
+    "betas": [0.8, 0.99],
+    "eps": 1e-09,
+    "weight_decay": 0.01
+  },
+
+  "grad_clip": [1000, 1000],
+  "mixed_precision": false,
+
+  "kl_loss_alpha": 1.0,
+  "disc_loss_alpha": 1.0,
+  "gen_loss_alpha": 1.0,
+  "feat_loss_alpha": 1.0,
+  "mel_loss_alpha": 45.0,
+  "dur_loss_alpha": 1.0,
+  "speaker_encoder_loss_alpha": 9.0,
+
+  "use_phonemes": false,
+  "add_blank": true,
+  "text_cleaner": "portuguese_cleaners",
+
+  "characters": {
+    "characters_class": "TTS.tts.models.vits.VitsCharacters",
+    "pad": "_",
+    "eos": "&",
+    "bos": "*",
+    "blank": null,
+    "characters": "ABCDEFGHIJKLMNÑOPQRSTUVWXYZÇÃÀÁÂÊÉÍÒÓÔÕÖÚÛÜabcdefghijklmnñopqrstuvwxyzçãàáâêéíòóôõôúûü",
+    "punctuations": "!'(),-.:;? ",
+    "phonemes": "iyɨʉɯuɪʏʊeøɘəɵɤoɛœɜɞʌɔæɐaɶɑɒᵻʘɓǀɗǃʄǂɠǁʛpbtdʈɖcɟkɡqɢʔɴŋɲɳnɱmʙrʀⱱɾɽɸβfvθðszʃʒʂʐçʝxɣχʁħʕhɦɬɮʋɹɻjɰlɭʎʟˈˌːˑʍwɥʜʢʡɕʑɺɧɚ˞ɫ'̃' ",
+    "is_unique": true,
+    "is_sorted": true
+  },
+
+  "phoneme_cache_path": null,
+  "precompute_num_workers": 12,
+  "start_by_longest": true,
+
+  "min_text_len": 5,
+  "max_text_len": 500,
+  "min_audio_len": 66150,
+  "max_audio_len": 441000,
+
+  "datasets": [
+    {
+      "formatter": "ljspeech",
+      "dataset_name": "ljspeech",
+      "path": "/home/fred/Projetos/DATASETS/LJSpeech-1.1/",
+      "meta_file_train": "metadata.csv",
+      "meta_file_val": null,
+      "language": "pt"
+    }
+  ],
+
+  "test_sentences": [
+    [
+      "Ouviram do ipiranga às margens plácidas de um povo heróico o brado retumbante.",
+      "LJ001-0001",
+      null,
+      "pt"
+    ],
+    [
+      "Minha terra tem palmeiras onde canta o sabiá, as aves que aqui gorjeiam não gorjeiam como lá.",
+      "LJ001-0002",
+      null,
+      "pt"
+    ],
+    [
+      "Ó que saudades que tenho da aurora da minha vida, da minha infância querida, Que os anos não trazem mais.",
+      "LJ001-0003",
+      null,
+      "pt"
+    ],
+    [
+      "E agora José? A festa acabou, a luz apagou, o povo sumiu, a noite esfriou, e agora José?",
+      "LJ001-0004",
+      null,
+      "pt"
+    ],
+    [
+      "Amor é fogo que arde sem se ver é ferida que dói e não se sente é um contentamento descontente é dor que desatina sem doer.",
+      "LJ001-0005",
+      null,
+      "pt"
+    ],
+    [
+      "Vou-me embora pra Pasárgada, Lá sou amigo do rei, Lá tenho a mulher que eu quero, Na cama que escolherei!",
+      "LJ001-0006",
+      null,
+      "pt"
+    ]
+  ],
+
+  "use_weighted_sampler": true,
+  "weighted_sampler_attrs": {
+    "speaker_name": 1.0
+  },
+  "weighted_sampler_multipliers": {},
+
+  "cudnn_benchmark": false,
+  "print_step": 25,
+  "print_eval": true,
+  "log_model_step": 1000,
+  "save_step": 10000,
+  "save_n_checkpoints": 2,
+  "save_checkpoints": true,
+  "save_all_best": false,
+
+  "dashboard_logger": "tensorboard",
+  "logger_uri": null,
+  "target_loss": "loss_1"
+}
