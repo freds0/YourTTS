@@ -100,25 +100,37 @@
       "path": "/home/fred/Projetos/DATASETS/LJSpeech-1.1/",
       "meta_file_train": "metadata.csv",
       "meta_file_val": null,
-      "language": "pt"
+      "language": "en"
     }
   ],
 
   "test_sentences": [
     [
-      "Ouviram do ipiranga às margens plácidas de um povo heróico o brado retumbante.",
+      "Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: ",
       "ljspeech",
       null,
-      "pt"
+      "en"
     ],
     [
-      "Minha terra tem palmeiras onde canta o sabiá, as aves que aqui gorjeiam não gorjeiam como lá.",
+
+      "once or twice she had peeped into the book her sister was reading, but it had no pictures or conversations in it,",
       "ljspeech",
       null,
-      "pt"
+      "en"
+    ],
+    [
+      "and what is the use of a book, thought Alice without pictures or conversation?",
+      "ljspeech",
+      null,
+      "en"
+    ],
+    [
+      "So she was considering in her own mind, as well as she could, for the hot day made her feel very sleepy and stupid,",
+      "ljspeech",
+      null,
+      "en"
     ]
   ],
-
   "use_weighted_sampler": true,
   "weighted_sampler_attrs": {
     "speaker_name": 1.0
